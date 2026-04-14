@@ -1,16 +1,32 @@
 name: deploy-staging
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type 'deploy-staging' to confirm staging deployment"
+        required: true
+        type: string
 
 concurrency:
   group: deploy-staging
   cancel-in-progress: false
 
 jobs:
+  validate:
+    name: Validate Trigger
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation
+        run: |
+          if [ "${{ inputs.confirm }}" != "deploy-staging" ]; then
+            echo "Confirmation failed. Input 'deploy-staging' to proceed."
+            exit 1
+          fi
+
   ci:
     name: CI Checks
+    needs: validate
     uses: ./.github/workflows/ci.yml
 
   deploy:
