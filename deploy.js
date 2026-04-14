@@ -100,7 +100,7 @@ function deployApi(image, env) {
   const envVars = [
     'NODE_ENV=production',
     `GCP_PROJECT_ID=${GCP_PROJECT}`,
-    'POSTGRES_HOST=35.185.181.255',
+    `POSTGRES_HOST=/cloudsql/${CLOUDSQL_CONNECTION}`,
     'POSTGRES_PORT=5432',
     'POSTGRES_DB=dev_review_db',
     'POSTGRES_USER=review_user',
