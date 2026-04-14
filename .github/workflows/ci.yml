@@ -1,0 +1,156 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_call: # allow reuse by deploy workflows
+
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 23
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+
+      - run: npm ci
+
+      - name: ESLint
+        run: npx eslint src/ --max-warnings=0
+        continue-on-error: true # ESLint config may not exist yet
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 23
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+
+      - run: npm ci
+
+      - name: Run unit tests with coverage
+        run: npx vitest run --coverage --coverage.reporter=text --coverage.reporter=lcov
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-jwt-secret-that-is-at-least-32-characters-long
+          FIREBASE_PROJECT_ID: test-project
+          GCP_BUCKET_NAME: test-bucket
+          GCP_PROJECT_ID: test-project
+          STRIPE_SECRET_KEY: sk_test_fake
+          STRIPE_WEBHOOK_SECRET: whsec_fake
+          SMS_PROVIDER: mock
+          APP_URL: http://localhost:3000
+          FRONTEND_URL: http://localhost:5173
+          CORS_ORIGINS: http://localhost:5173
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: apps/api/coverage/
+          retention-days: 14
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: review_user
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: review_app_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 23
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+
+      - run: npm ci
+
+      - name: Run migrations
+        run: npm run db:migrate
+        continue-on-error: true # Migrations may not exist yet
+        env:
+          NODE_ENV: test
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: review_app_test
+          POSTGRES_USER: review_user
+          POSTGRES_PASSWORD: testpassword
+          JWT_SECRET: test-jwt-secret-that-is-at-least-32-characters-long
+          FIREBASE_PROJECT_ID: test-project
+          GCP_BUCKET_NAME: test-bucket
+          GCP_PROJECT_ID: test-project
+          STRIPE_SECRET_KEY: sk_test_fake
+          STRIPE_WEBHOOK_SECRET: whsec_fake
+          SMS_PROVIDER: mock
+          APP_URL: http://localhost:3000
+          FRONTEND_URL: http://localhost:5173
+          CORS_ORIGINS: http://localhost:5173
+
+      - name: Run integration tests
+        run: npx vitest run tests/integration/
+        env:
+          NODE_ENV: test
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: review_app_test
+          POSTGRES_USER: review_user
+          POSTGRES_PASSWORD: testpassword
+          JWT_SECRET: test-jwt-secret-that-is-at-least-32-characters-long
+          FIREBASE_PROJECT_ID: test-project
+          GCP_BUCKET_NAME: test-bucket
+          GCP_PROJECT_ID: test-project
+          STRIPE_SECRET_KEY: sk_test_fake
+          STRIPE_WEBHOOK_SECRET: whsec_fake
+          SMS_PROVIDER: mock
+          APP_URL: http://localhost:3000
+          FRONTEND_URL: http://localhost:5173
+          CORS_ORIGINS: http://localhost:5173
+
+  build-check:
+    name: Docker Build Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t review-api:ci apps/api
