@@ -30,7 +30,7 @@ export class OrganizationController {
 
   getById = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const org = await this.service.getOrgById(req.params.id);
+      const org = await this.service.getOrgById(req.params.id as string);
       const teamCount = await this.service.getTeamCount(org.id);
       res.json(this.toOrgResponse(org, teamCount));
     } catch (error) {
@@ -49,7 +49,7 @@ export class OrganizationController {
 
   untag = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const result = await this.service.untagProfile(req.params.profileOrgId, req.user!.id);
+      const result = await this.service.untagProfile(req.params.profileOrgId as string, req.user!.id);
       res.json(result);
     } catch (error) {
       next(error);
@@ -58,7 +58,7 @@ export class OrganizationController {
 
   getByProfile = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const members = await this.service.getProfileOrgs(req.params.profileId);
+      const members = await this.service.getProfileOrgs(req.params.profileId as string);
       res.json({ organizations: members.map((m: any) => this.toMemberResponse(m)) });
     } catch (error) {
       next(error);
@@ -67,7 +67,7 @@ export class OrganizationController {
 
   getMembers = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const members = await this.service.getOrgMembers(req.params.id);
+      const members = await this.service.getOrgMembers(req.params.id as string);
       res.json({ members: members.map((m: any) => this.toMemberResponse(m)) });
     } catch (error) {
       next(error);

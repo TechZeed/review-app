@@ -1,5 +1,5 @@
 import { BaseRepo } from '../../shared/db/base.repo.js';
-import { Profile } from './profile.model.js';
+import { Profile, ProfileAttributes } from './profile.model.js';
 
 export class ProfileRepo extends BaseRepo<Profile> {
   constructor() {
@@ -30,8 +30,8 @@ export class ProfileRepo extends BaseRepo<Profile> {
     };
 
     for (const quality of qualityPicks) {
-      const countField = `${quality}Count` as string;
-      const currentVal = profile.getDataValue(countField) ?? 0;
+      const countField = `${quality}Count` as keyof ProfileAttributes;
+      const currentVal = (profile.getDataValue(countField) as number) ?? 0;
       updates[countField] = currentVal + 1;
     }
 

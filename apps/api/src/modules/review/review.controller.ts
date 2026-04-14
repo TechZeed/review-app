@@ -17,7 +17,7 @@ export class ReviewController {
    */
   scan = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await this.service.scanProfile(req.params.slug, req.body);
+      const result = await this.service.scanProfile(req.params.slug as string, req.body);
       res.status(201).json(result);
     } catch (error) {
       next(error);
@@ -43,7 +43,7 @@ export class ReviewController {
    */
   getByProfile = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await this.service.getReviewsByProfile(req.params.profileId, {
+      const result = await this.service.getReviewsByProfile(req.params.profileId as string, {
         page: Number(req.query.page) || 1,
         limit: Number(req.query.limit) || 20,
         sortBy: (req.query.sortBy as string) ?? 'recent',

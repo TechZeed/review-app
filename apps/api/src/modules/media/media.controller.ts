@@ -68,7 +68,7 @@ export class MediaController {
 
   getById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const media = await this.service.getById(req.params.mediaId);
+      const media = await this.service.getById(req.params.mediaId as string);
       res.json(this.toResponse(media));
     } catch (error) {
       next(error);
@@ -77,7 +77,7 @@ export class MediaController {
 
   stream = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const urlData = await this.service.getSignedUrl(req.params.mediaId);
+      const urlData = await this.service.getSignedUrl(req.params.mediaId as string);
       if (urlData.signedUrl) {
         res.redirect(302, urlData.signedUrl);
       } else {
@@ -91,7 +91,7 @@ export class MediaController {
 
   getSignedUrl = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const urlData = await this.service.getSignedUrl(req.params.mediaId);
+      const urlData = await this.service.getSignedUrl(req.params.mediaId as string);
       res.json(urlData);
     } catch (error) {
       next(error);

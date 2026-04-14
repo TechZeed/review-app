@@ -28,7 +28,7 @@ export class ReferenceController {
 
   withdraw = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await this.service.withdraw(req.params.referenceId);
+      const result = await this.service.withdraw(req.params.referenceId as string);
       res.json(result);
     } catch (error) {
       next(error);
@@ -46,7 +46,7 @@ export class ReferenceController {
 
   getByProfile = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await this.service.getByProfile(req.params.profileId);
+      const result = await this.service.getByProfile(req.params.profileId as string);
       res.json(result);
     } catch (error) {
       next(error);

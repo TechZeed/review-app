@@ -37,7 +37,7 @@ export class EmployerController {
 
   getTeamMember = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const member = await this.service.getTeamMember(req.user!.id, req.params.profileId);
+      const member = await this.service.getTeamMember(req.user!.id, req.params.profileId as string);
       res.json(member);
     } catch (error) {
       next(error);

@@ -113,7 +113,7 @@ export class AuthService {
       throw new AppError('Account has been suspended', 403, 'ACCOUNT_SUSPENDED');
     }
 
-    if (user.getDataValue('status') === 'deactivated') {
+    if (user.getDataValue('status') === 'inactive') {
       throw new AppError('Account has been deactivated', 403, 'ACCOUNT_DEACTIVATED');
     }
 

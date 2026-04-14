@@ -28,7 +28,7 @@ export class RecruiterController {
 
   viewProfile = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const profile = await this.service.viewProfile(req.params.profileId, req.user!.id);
+      const profile = await this.service.viewProfile(req.params.profileId as string, req.user!.id);
       res.json(profile);
     } catch (error) {
       next(error);
@@ -39,7 +39,7 @@ export class RecruiterController {
     try {
       const result = await this.service.requestContact(
         req.user!.id,
-        req.params.profileId,
+        req.params.profileId as string,
         req.body,
       );
       res.status(201).json(result);

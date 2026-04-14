@@ -25,12 +25,8 @@ export function auditLog(action: string, entityType?: string) {
       if (res.statusCode >= 200 && res.statusCode < 300) {
         setImmediate(async () => {
           try {
-            // Import dynamically to avoid circular dependencies
-            const { AuditLogService } = await import(
-              "../modules/audit/audit.service.js"
-            );
-
-            await AuditLogService.log({
+            // TODO: integrate audit service once the audit module is available
+            console.info("Audit:", {
               userId: req.user?.id,
               action,
               entityType: entityType || req.params.entityType,

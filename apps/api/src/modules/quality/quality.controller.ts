@@ -29,7 +29,7 @@ export class QualityController {
    */
   getScoresByProfile = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const scores = await this.service.getScoresByProfile(req.params.profileId);
+      const scores = await this.service.getScoresByProfile(req.params.profileId as string);
       res.json({ scores });
     } catch (error) {
       next(error);

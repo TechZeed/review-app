@@ -41,7 +41,7 @@ export class VerificationController {
 
   validateToken = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await this.service.validateToken(req.params.tokenId);
+      const result = await this.service.validateToken(req.params.tokenId as string);
       if (result.valid) {
         res.json(result);
       } else {

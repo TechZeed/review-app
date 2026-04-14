@@ -21,7 +21,7 @@ organizationRouter.use(authenticate);
 // POST / — Create organization (employer or admin)
 organizationRouter.post(
   '/',
-  requireRole(['employer', 'admin']),
+  requireRole(['EMPLOYER', 'ADMIN']),
   validateBody(createOrgSchema),
   controller.create,
 );
@@ -29,7 +29,7 @@ organizationRouter.post(
 // POST /tag — Tag a profile to an organization
 organizationRouter.post(
   '/tag',
-  requireRole(['individual', 'employer']),
+  requireRole(['INDIVIDUAL', 'EMPLOYER']),
   validateBody(tagSchema),
   controller.tag,
 );
@@ -37,7 +37,7 @@ organizationRouter.post(
 // DELETE /untag/:profileOrgId — Untag a profile from an organization
 organizationRouter.delete(
   '/untag/:profileOrgId',
-  requireRole(['individual', 'employer']),
+  requireRole(['INDIVIDUAL', 'EMPLOYER']),
   validateParams(profileOrgIdParamSchema),
   controller.untag,
 );
@@ -54,7 +54,7 @@ organizationRouter.get(
 // Must be before /:id to prevent "me" matching as :id
 organizationRouter.get(
   '/me/team',
-  requireRole(['employer']),
+  requireRole(['EMPLOYER']),
   validateQuery(teamQuerySchema),
   controller.getTeam,
 );
@@ -62,7 +62,7 @@ organizationRouter.get(
 // GET /:id/members — Get members of an organization (employer)
 organizationRouter.get(
   '/:id/members',
-  requireRole(['employer', 'admin']),
+  requireRole(['EMPLOYER', 'ADMIN']),
   validateParams(orgIdParamSchema),
   controller.getMembers,
 );

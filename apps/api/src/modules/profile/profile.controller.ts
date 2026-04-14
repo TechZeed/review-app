@@ -32,7 +32,7 @@ export class ProfileController {
    */
   getBySlug = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await this.service.getBySlug(req.params.slug);
+      const result = await this.service.getBySlug(req.params.slug as string);
       res.json(result);
     } catch (error) {
       next(error);
