@@ -21,6 +21,7 @@
     "docs": "echo '\n  API docs at http://localhost:3000/api-docs\n'"
   },
   "dependencies": {
+    "@google-cloud/secret-manager": "^6.1.1",
     "@google-cloud/storage": "^7.18.0",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",

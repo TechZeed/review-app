@@ -1,10 +1,17 @@
-import { env } from "./config/env.js";
 import { logger } from "./config/logger.js";
-import { initializeFirebase } from "./config/firebase.js";
-import { initDb, shutdownDb } from "./config/sequelize.js";
-import { app } from "./app.js";
+import { resolveAllSecrets } from "./config/configResolver.js";
 
 async function main() {
+  // 1. Resolve secrets: env vars first, GCP Secret Manager fallback
+  await resolveAllSecrets();
+
+  // 2. Now import env (Zod parse happens on import — secrets must be resolved first)
+  const { env } = await import("./config/env.js");
+  const { initializeFirebase } = await import("./config/firebase.js");
+  const { initDb, shutdownDb } = await import("./config/sequelize.js");
+  const { app } = await import("./app.js");
+
+  // 3. Initialize services
   initializeFirebase();
   await initDb();
 

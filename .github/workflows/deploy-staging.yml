@@ -3,6 +3,16 @@ name: deploy-staging
 on:
   workflow_dispatch:
     inputs:
+      service:
+        description: "Service to deploy"
+        required: true
+        type: choice
+        options:
+          - api
+          - web
+          - ui
+          - all
+        default: api
       confirm:
         description: "Type 'deploy-staging' to confirm staging deployment"
         required: true
@@ -30,7 +40,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   deploy:
-    name: Deploy to Staging
+    name: Deploy to Staging (${{ inputs.service }})
     needs: ci
     runs-on: ubuntu-latest
     environment: staging
@@ -48,6 +58,11 @@ jobs:
       - name: Remove .env files
         run: find . -name ".env*" -type f -delete && touch .env
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v2
@@ -60,83 +75,33 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
 
-      - name: Ensure Artifact Registry repository exists
-        run: |
-          gcloud artifacts repositories describe ${{ env.GCP_ARTIFACT_REPOSITORY }} \
-            --location=${{ env.GCP_REGION }} || \
-          gcloud artifacts repositories create ${{ env.GCP_ARTIFACT_REPOSITORY }} \
-            --repository-format=docker --location=${{ env.GCP_REGION }}
+      - name: Deploy via deploy.js
+        run: node deploy.js ${{ inputs.service }} staging
 
-      - name: Build and push image
-        id: build_image
+      - name: Smoke test (API only)
+        if: inputs.service == 'api' || inputs.service == 'all'
         run: |
-          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REPOSITORY }}/api:${{ github.sha }}"
-          docker build -t "$IMAGE" apps/api
-          docker push "$IMAGE"
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
-
-      - name: Run DB migrations
-        run: |
-          gcloud run jobs execute review-db-migrate-staging \
+          SERVICE_URL=$(gcloud run services describe review-api-staging \
             --region=${{ env.GCP_REGION }} \
-            --wait \
-            --args="up"
+            --format="value(status.url)" \
+            --project=${{ env.GCP_PROJECT_ID }})
 
-      - name: Deploy to Cloud Run (staging)
-        id: deploy
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: review-api-staging
-          region: ${{ env.GCP_REGION }}
-          image: ${{ steps.build_image.outputs.image }}
-          flags: >-
-            --allow-unauthenticated
-            --service-account=review-api-staging-sa@${{ env.GCP_PROJECT_ID }}.iam.gserviceaccount.com
-            --add-cloudsql-instances=${{ env.CLOUDSQL_CONNECTION_NAME }}
-            --vpc-connector=review-vpc-connector
-            --memory=512Mi
-            --cpu=1
-            --min-instances=0
-            --max-instances=2
-            --timeout=300
-          env_vars: |
-            NODE_ENV=production
-            PORT=8080
-            GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
-            POSTGRES_HOST=/cloudsql/${{ env.CLOUDSQL_CONNECTION_NAME }}
-            POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}
-            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
-            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
-            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            JWT_EXPIRATION_TIME_IN_MINUTES=${{ secrets.JWT_EXPIRATION_TIME_IN_MINUTES }}
-            FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
-            GCP_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}
-            GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
-            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-            STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
-            SMS_PROVIDER=${{ secrets.SMS_PROVIDER }}
-            TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
-            TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
-            TWILIO_PHONE_NUMBER=${{ secrets.TWILIO_PHONE_NUMBER }}
-            APP_URL=${{ secrets.APP_URL }}
-            FRONTEND_URL=${{ secrets.FRONTEND_URL }}
-            CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}
-            REVIEW_TOKEN_EXPIRY_HOURS=48
-            REVIEW_COOLDOWN_DAYS=7
-
-      - name: Smoke test
-        run: |
-          SERVICE_URL="${{ steps.deploy.outputs.url }}"
           echo "Running smoke tests against $SERVICE_URL"
 
-          # Health check
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL/health")
-          if [ "$HTTP_STATUS" != "200" ]; then
-            echo "Health check failed with status $HTTP_STATUS"
-            exit 1
-          fi
-          echo "Health check passed"
+          # Health check with retries
+          for i in $(seq 1 5); do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL/health" 2>/dev/null || echo "000")
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "Health check passed on attempt $i"
+              break
+            fi
+            echo "Attempt $i: status $HTTP_STATUS, retrying in 10s..."
+            sleep 10
+            if [ "$i" = "5" ]; then
+              echo "Health check failed after 5 attempts"
+              exit 1
+            fi
+          done
 
           # Qualities endpoint (public, seeded data)
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL/api/v1/qualities")
@@ -150,5 +115,4 @@ jobs:
 
       - name: Output
         run: |
-          echo "Staging deployment successful"
-          echo "Service URL: ${{ steps.deploy.outputs.url }}"
+          echo "Staging deployment of '${{ inputs.service }}' successful"

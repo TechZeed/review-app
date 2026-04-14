@@ -3,6 +3,16 @@ name: deploy-prod
 on:
   workflow_dispatch:
     inputs:
+      service:
+        description: "Service to deploy"
+        required: true
+        type: choice
+        options:
+          - api
+          - web
+          - ui
+          - all
+        default: api
       confirm:
         description: "Type 'deploy-prod' to confirm production deployment"
         required: true
@@ -31,7 +41,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   deploy:
-    name: Deploy to Production
+    name: Deploy to Production (${{ inputs.service }})
     needs: ci
     runs-on: ubuntu-latest
     environment: production
@@ -49,6 +59,11 @@ jobs:
       - name: Remove .env files
         run: find . -name ".env*" -type f -delete && touch .env
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v2
@@ -61,78 +76,22 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
 
-      - name: Build and push image
-        id: build_image
-        run: |
-          IMAGE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_ARTIFACT_REPOSITORY }}/api:${{ github.sha }}"
-          docker build -t "$IMAGE" apps/api
-          docker push "$IMAGE"
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+      - name: Deploy via deploy.js
+        run: node deploy.js ${{ inputs.service }} prod
 
-      - name: Run DB migrations
-        run: |
-          gcloud run jobs execute review-db-migrate-prod \
-            --region=${{ env.GCP_REGION }} \
-            --wait \
-            --args="up"
-
-      - name: Deploy to Cloud Run (prod) -- no traffic
-        id: deploy
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: review-api-prod
-          region: ${{ env.GCP_REGION }}
-          image: ${{ steps.build_image.outputs.image }}
-          no_traffic: true
-          flags: >-
-            --allow-unauthenticated
-            --service-account=review-api-prod-sa@${{ env.GCP_PROJECT_ID }}.iam.gserviceaccount.com
-            --add-cloudsql-instances=${{ env.CLOUDSQL_CONNECTION_NAME }}
-            --vpc-connector=review-vpc-connector
-            --memory=1Gi
-            --cpu=2
-            --min-instances=1
-            --max-instances=10
-            --timeout=300
-          env_vars: |
-            NODE_ENV=production
-            PORT=8080
-            GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
-            POSTGRES_HOST=/cloudsql/${{ env.CLOUDSQL_CONNECTION_NAME }}
-            POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}
-            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
-            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
-            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            JWT_EXPIRATION_TIME_IN_MINUTES=${{ secrets.JWT_EXPIRATION_TIME_IN_MINUTES }}
-            FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
-            GCP_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }}
-            GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
-            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-            STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
-            SMS_PROVIDER=twilio
-            TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
-            TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
-            TWILIO_PHONE_NUMBER=${{ secrets.TWILIO_PHONE_NUMBER }}
-            APP_URL=${{ secrets.APP_URL }}
-            FRONTEND_URL=${{ secrets.FRONTEND_URL }}
-            CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}
-            REVIEW_TOKEN_EXPIRY_HOURS=48
-            REVIEW_COOLDOWN_DAYS=7
-
-      - name: Health check on new revision
+      - name: Health check (API only)
         id: health
+        if: inputs.service == 'api' || inputs.service == 'all'
         run: |
-          REVISION_URL=$(gcloud run revisions list \
-            --service=review-api-prod \
+          SERVICE_URL=$(gcloud run services describe review-api-prod \
             --region=${{ env.GCP_REGION }} \
             --format="value(status.url)" \
-            --limit=1)
+            --project=${{ env.GCP_PROJECT_ID }})
 
-          echo "Checking health of new revision: $REVISION_URL"
+          echo "Checking health of review-api-prod at $SERVICE_URL"
 
           for i in $(seq 1 5); do
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$REVISION_URL/health" 2>/dev/null || echo "000")
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL/health" 2>/dev/null || echo "000")
             if [ "$HTTP_STATUS" = "200" ]; then
               echo "Health check passed on attempt $i"
               echo "healthy=true" >> "$GITHUB_OUTPUT"
@@ -144,26 +103,9 @@ jobs:
 
           echo "healthy=false" >> "$GITHUB_OUTPUT"
           echo "Health check failed after 5 attempts"
-
-      - name: Route traffic or rollback
-        run: |
-          if [ "${{ steps.health.outputs.healthy }}" = "true" ]; then
-            echo "Routing 100% traffic to new revision"
-            gcloud run services update-traffic review-api-prod \
-              --region=${{ env.GCP_REGION }} \
-              --to-latest
-            echo "Production deployment successful"
-          else
-            echo "Health check failed -- rolling back"
-            gcloud run services update-traffic review-api-prod \
-              --region=${{ env.GCP_REGION }} \
-              --to-latest=false
-            echo "Rollback complete. New revision receives no traffic."
-            exit 1
-          fi
+          exit 1
 
       - name: Output
         if: success()
         run: |
-          echo "Production deployment successful"
-          echo "Service URL: ${{ steps.deploy.outputs.url }}"
+          echo "Production deployment of '${{ inputs.service }}' successful"
