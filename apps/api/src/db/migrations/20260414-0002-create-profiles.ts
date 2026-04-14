@@ -26,7 +26,7 @@ export const up: Migration = async ({ context: sequelize }) => {
       onDelete: "CASCADE",
     },
     slug: {
-      type: DataTypes.STRING(12),
+      type: DataTypes.STRING(50),
       allowNull: false,
       unique: true,
     },

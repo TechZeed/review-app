@@ -34,17 +34,15 @@ export class ReviewService {
     // In a full implementation, this would write to a `review_tokens` table.
     // For now, we store it in a lightweight way. The verification module handles OTP.
     try {
-      const { ReviewToken } = await import('./reviewToken.model.js');
+      const { ReviewToken } = await import('../verification/verification.model.js');
       await ReviewToken.create({
         profileId: profile.getDataValue('id'),
         tokenHash,
         deviceFingerprintHash,
-        ipAddressHash: null,
-        gpsLatitude: data.latitude ?? null,
-        gpsLongitude: data.longitude ?? null,
         scannedAt: new Date(),
         expiresAt,
-        status: 'pending',
+        isUsed: false,
+        phoneVerified: false,
       } as any);
     } catch (err) {
       logger.warn('ReviewToken model not available, storing token in memory', {
@@ -74,24 +72,20 @@ export class ReviewService {
 
     let reviewTokenRecord: any = null;
     try {
-      const { ReviewToken } = await import('./reviewToken.model.js');
+      const { ReviewToken } = await import('../verification/verification.model.js');
       reviewTokenRecord = await ReviewToken.findOne({ where: { tokenHash } });
     } catch {
       // ReviewToken model may not be available yet
     }
 
     if (reviewTokenRecord) {
-      // Validate token state
-      if (reviewTokenRecord.status === 'used') {
+      // Validate token state using boolean fields (matches DB schema)
+      if (reviewTokenRecord.isUsed || reviewTokenRecord.is_used) {
         throw new AppError('Review token has already been used', 400, 'REVIEW_TOKEN_ALREADY_USED');
       }
 
-      if (reviewTokenRecord.status === 'expired' || new Date(reviewTokenRecord.expiresAt) < new Date()) {
+      if (new Date(reviewTokenRecord.expiresAt || reviewTokenRecord.expires_at) < new Date()) {
         throw new AppError('Review token has expired', 400, 'REVIEW_TOKEN_EXPIRED');
-      }
-
-      if (reviewTokenRecord.status !== 'pending' && reviewTokenRecord.status !== 'phone_verified') {
-        throw new AppError('Invalid review token state', 400, 'INVALID_REVIEW_TOKEN');
       }
     }
 
@@ -138,9 +132,7 @@ export class ReviewService {
     // Mark token as used
     if (reviewTokenRecord) {
       await reviewTokenRecord.update({
-        usedAt: new Date(),
-        reviewId: review.getDataValue('id'),
-        status: 'used',
+        is_used: true,
       });
     }
 
@@ -249,7 +241,7 @@ export class ReviewService {
       }
 
       // Phone was verified via OTP
-      if (tokenRecord.status === 'phone_verified' || tokenRecord.phoneVerifiedAt) {
+      if (tokenRecord.phoneVerified || tokenRecord.phone_verified) {
         score += 10;
       }
     }

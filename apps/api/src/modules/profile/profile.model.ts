@@ -62,10 +62,10 @@ export function initProfileModel(sequelize: Sequelize): void {
         field: "user_id",
       },
       slug: {
-        type: DataTypes.STRING(12),
+        type: DataTypes.STRING(50),
         unique: true,
         allowNull: false,
-        comment: "URL-safe 8-12 char identifier for QR code URLs",
+        comment: "URL-safe identifier for QR code URLs",
       },
       headline: {
         type: DataTypes.STRING(255),
