@@ -97,25 +97,29 @@ function deployApi(image, env) {
   const serviceName = `review-api-${env}`;
   const secrets = buildApiSecrets();
 
-  const envVars = [
-    'NODE_ENV=production',
-    `GCP_PROJECT_ID=${GCP_PROJECT}`,
-    `POSTGRES_HOST=/cloudsql/${CLOUDSQL_CONNECTION}`,
-    'POSTGRES_PORT=5432',
-    'POSTGRES_DB=dev_review_db',
-    'POSTGRES_USER=review_user',
-    `FIREBASE_PROJECT_ID=${GCP_PROJECT}`,
-    'GCP_BUCKET_NAME=humini-review-media-dev',
-    'JWT_EXPIRATION_TIME_IN_MINUTES=60',
-    'SMS_PROVIDER=mock',
-    'REVIEW_TOKEN_EXPIRY_HOURS=48',
-    'REVIEW_COOLDOWN_DAYS=7',
-    'SIGNED_URL_EXPIRY_MINUTES=60',
-    'ENABLE_HTTP_LOGGING=false',
-    'APP_URL=https://review-api-dev-mtvmlsco4a-as.a.run.app',
-    'FRONTEND_URL=https://review-web-dev-mtvmlsco4a-as.a.run.app',
-    'CORS_ORIGINS=https://review-web-dev-mtvmlsco4a-as.a.run.app^https://review-ui-dev-mtvmlsco4a-as.a.run.app',
-  ].join(',');
+  const envPairs = {
+    NODE_ENV: 'production',
+    GCP_PROJECT_ID: GCP_PROJECT,
+    CLOUDSQL_CONNECTION_NAME: CLOUDSQL_CONNECTION,
+    POSTGRES_DB: 'dev_review_db',
+    POSTGRES_USER: 'review_user',
+    FIREBASE_PROJECT_ID: GCP_PROJECT,
+    GCP_BUCKET_NAME: 'humini-review-media-dev',
+    JWT_EXPIRATION_TIME_IN_MINUTES: '60',
+    SMS_PROVIDER: 'mock',
+    REVIEW_TOKEN_EXPIRY_HOURS: '48',
+    REVIEW_COOLDOWN_DAYS: '7',
+    SIGNED_URL_EXPIRY_MINUTES: '60',
+    ENABLE_HTTP_LOGGING: 'false',
+    APP_URL: `https://review-api-${env}-mtvmlsco4a-as.a.run.app`,
+    FRONTEND_URL: `https://review-web-${env}-mtvmlsco4a-as.a.run.app`,
+    CORS_ORIGINS: `https://review-web-${env}-mtvmlsco4a-as.a.run.app`,
+  };
+
+  // Build --update-env-vars flags individually (avoids colon parsing issues)
+  const envFlags = Object.entries(envPairs)
+    .map(([k, v]) => `--update-env-vars=${k}=${v}`)
+    .join(' ');
 
   const cmd = [
     'gcloud run deploy', serviceName,
@@ -124,7 +128,7 @@ function deployApi(image, env) {
     `--platform=managed`,
     `--allow-unauthenticated`,
     `--add-cloudsql-instances=${CLOUDSQL_CONNECTION}`,
-    `--set-env-vars="${envVars}"`,
+    envFlags,
     `--set-secrets="${secrets}"`,
     `--min-instances=0`,
     `--max-instances=2`,

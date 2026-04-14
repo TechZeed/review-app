@@ -70,29 +70,11 @@ export async function initDb(): Promise<void> {
   }
 
   const isCloudRun = !!appenv.get("K_SERVICE");
+  const hasConnectionName = !!appenv.get("CLOUDSQL_CONNECTION_NAME");
   const hostIsSocket = (appenv.get("POSTGRES_HOST") || "").startsWith("/cloudsql");
-  if (isCloudRun || hostIsSocket) {
-    // Cloud Run or explicit Unix socket path — use socket connection
-    if (!appenv.get("CLOUDSQL_CONNECTION_NAME") && hostIsSocket) {
-      // Extract connection name from host path for socket mode
-      const host = appenv.get("POSTGRES_HOST")!;
-      logger.info(`Using Cloud SQL Unix socket: ${host}`);
-      _sequelize = new Sequelize(
-        appenv.get("POSTGRES_DB"),
-        appenv.get("POSTGRES_USER"),
-        appenv.get("POSTGRES_PASSWORD"),
-        {
-          host,
-          port: undefined,
-          dialect: "postgres",
-          logging: false,
-          dialectOptions: {},
-          define: { schema: "public" },
-        },
-      );
-    } else {
-      _sequelize = getGcpCloudSqlConnection();
-    }
+
+  if (isCloudRun || hasConnectionName || hostIsSocket) {
+    _sequelize = getGcpCloudSqlConnection();
   } else {
     _sequelize = getPlainSqlConnection();
   }
