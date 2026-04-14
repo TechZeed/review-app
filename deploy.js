@@ -99,9 +99,8 @@ function deployApi(image, env) {
 
   const envVars = [
     'NODE_ENV=production',
-    'PORT=8080',
     `GCP_PROJECT_ID=${GCP_PROJECT}`,
-    `POSTGRES_HOST=/cloudsql/${CLOUDSQL_CONNECTION}`,
+    'POSTGRES_HOST=35.185.181.255',
     'POSTGRES_PORT=5432',
     'POSTGRES_DB=dev_review_db',
     'POSTGRES_USER=review_user',
@@ -113,6 +112,9 @@ function deployApi(image, env) {
     'REVIEW_COOLDOWN_DAYS=7',
     'SIGNED_URL_EXPIRY_MINUTES=60',
     'ENABLE_HTTP_LOGGING=false',
+    'APP_URL=https://review-api-dev-mtvmlsco4a-as.a.run.app',
+    'FRONTEND_URL=https://review-web-dev-mtvmlsco4a-as.a.run.app',
+    'CORS_ORIGINS=https://review-web-dev-mtvmlsco4a-as.a.run.app^https://review-ui-dev-mtvmlsco4a-as.a.run.app',
   ].join(',');
 
   const cmd = [
