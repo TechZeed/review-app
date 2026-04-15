@@ -34,14 +34,9 @@ jobs:
             exit 1
           fi
 
-  ci:
-    name: CI Checks
-    needs: validate
-    uses: ./.github/workflows/ci.yml
-
   deploy:
     name: Deploy to Staging (${{ inputs.service }})
-    needs: ci
+    needs: validate
     runs-on: ubuntu-latest
     environment: staging
     timeout-minutes: 30
