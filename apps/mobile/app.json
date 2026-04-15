@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "ReviewApp",
+    "slug": "reviewapp",
+    "owner": "deemwar",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4f46e5"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "sg.reviewapp.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#4f46e5"
+      },
+      "package": "sg.reviewapp.app",
+      "edgeToEdgeEnabled": true,
+      "versionCode": 2
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "0a16994f-a788-4021-bd41-ad1afed8da3f"
+      }
+    }
+  }
+}

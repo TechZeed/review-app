@@ -59,6 +59,20 @@ tasks:
     dir: "{{.ROOT_DIR}}"
     cmd: node deploy.js all dev
 
+  # ─── Mobile ──────────────────────────────────────────────────────────────────
+
+  deploy:mobile:
+    desc: Build and submit mobile app to Play Store internal track
+    dir: "{{.ROOT_DIR}}/apps/mobile"
+    cmds:
+      - eas build --platform android --profile production --non-interactive
+      - eas submit --platform android --latest --non-interactive
+
+  deploy:mobile:preview:
+    desc: Build preview APK for internal testing
+    dir: "{{.ROOT_DIR}}/apps/mobile"
+    cmd: eas build --platform android --profile preview --non-interactive
+
   # ─── Logs ────────────────────────────────────────────────────────────────────
 
   logs:api:
