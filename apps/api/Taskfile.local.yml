@@ -6,24 +6,23 @@ vars:
   ENV_FILE: .env.dev
 
 tasks:
-  proxy:
+  startproxy:
     desc: Start Cloud SQL Auth Proxy on localhost:{{.PROXY_PORT}}
     cmd: cloud-sql-proxy {{.CLOUDSQL_CONNECTION}} --port={{.PROXY_PORT}}
 
-  dev:
+  server:
     desc: Start API dev server (requires proxy running)
     cmd: npx tsx --env-file={{.ENV_FILE}} src/server.ts
 
   start:
     desc: Start proxy + dev server together
-    deps: []
     cmds:
-      - task: proxy &
+      - task: startproxy &
       - sleep 2
-      - task: dev
+      - task: server
 
   migrate:
-    desc: Run database migrations via proxy
+    desc: Run database migrations
     cmd: npx tsx --env-file={{.ENV_FILE}} src/db/cli.ts up
 
   migrate:down:
@@ -42,7 +41,7 @@ tasks:
     desc: Remove seed data
     cmd: npx tsx --env-file={{.ENV_FILE}} src/db/seed-cli.ts down
 
-  db:connect:
+  psql:
     desc: Connect to Cloud SQL via psql through proxy
     cmd: PGPASSWORD=$(grep POSTGRES_PASSWORD {{.ENV_FILE}} | cut -d= -f2) psql -h localhost -p {{.PROXY_PORT}} -U review_user -d dev_review_db
 
@@ -59,21 +58,21 @@ tasks:
     cmd: npx tsc --noEmit
 
   deploy:api:
-    desc: Deploy API to Cloud Run dev
+    desc: Deploy API to Cloud Run
     dir: "{{.ROOT_DIR}}"
     cmd: node deploy.js api dev
 
   deploy:web:
-    desc: Deploy Web to Cloud Run dev
+    desc: Deploy Web to Cloud Run
     dir: "{{.ROOT_DIR}}"
     cmd: node deploy.js web dev
 
   deploy:ui:
-    desc: Deploy UI to Cloud Run dev
+    desc: Deploy UI to Cloud Run
     dir: "{{.ROOT_DIR}}"
     cmd: node deploy.js ui dev
 
   deploy:all:
-    desc: Deploy all services to Cloud Run dev
+    desc: Deploy all services to Cloud Run
     dir: "{{.ROOT_DIR}}"
     cmd: node deploy.js all dev
