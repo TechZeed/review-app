@@ -179,7 +179,7 @@ Data safety, app category, and store listing are **not required for internal tes
 | GCP_SA_KEY | Set (review-deployer SA key) |
 | CLOUDSQL_CONNECTION_NAME | Set |
 | GOOGLE_PLAY_SA_KEY | Set (eas-submit SA key) |
-| **EXPO_TOKEN** | **NOT SET** — needed for deploy-mobile workflow |
+| EXPO_TOKEN | Set (from ~/.zshrc) |
 
 ---
 
@@ -190,7 +190,7 @@ Data safety, app category, and store listing are **not required for internal tes
 | `ci.yml` | Push to main + PRs | Running but **failing** (test issues) |
 | `deploy-staging.yml` | Manual (workflow_dispatch) | **Working** — last run succeeded |
 | `deploy-prod.yml` | Manual (workflow_dispatch) | Not tested yet |
-| `deploy-mobile.yml` | Manual (workflow_dispatch) | Created, **EXPO_TOKEN not set** |
+| `deploy-mobile.yml` | Manual (workflow_dispatch) | Ready — all secrets set |
 
 ---
 
@@ -233,9 +233,8 @@ task dev:health                # Health check
 
 ### P1 — Needed before user testing
 4. **Complete Play Console** — Data safety, app category, store listing.
-5. **Set EXPO_TOKEN** — GitHub secret for mobile deploy workflow.
-6. **Stripe webhook** — Set up `stripe listen` forwarding or configure webhook URL on deployed API.
-7. **Test media upload** — Verify voice/video upload to GCS works end-to-end.
+5. **Stripe webhook** — Set up `stripe listen` forwarding or configure webhook URL on deployed API.
+6. **Test media upload** — Verify voice/video upload to GCS works end-to-end.
 
 ### P2 — Before production
 8. **Privacy policy page** — Create actual /privacy page in UI app (currently returns 404).
