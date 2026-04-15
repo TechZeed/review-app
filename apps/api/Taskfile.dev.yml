@@ -1,0 +1,48 @@
+version: "3"
+
+tasks:
+  # ─── Deploy ──────────────────────────────────────────────────────────────────
+
+  deploy:api:
+    desc: Deploy API to Cloud Run dev
+    dir: "{{.ROOT_DIR}}"
+    cmd: node deploy.js api dev
+
+  deploy:web:
+    desc: Deploy Web to Cloud Run dev
+    dir: "{{.ROOT_DIR}}"
+    cmd: node deploy.js web dev
+
+  deploy:ui:
+    desc: Deploy UI to Cloud Run dev
+    dir: "{{.ROOT_DIR}}"
+    cmd: node deploy.js ui dev
+
+  deploy:all:
+    desc: Deploy all services to Cloud Run dev
+    dir: "{{.ROOT_DIR}}"
+    cmd: node deploy.js all dev
+
+  # ─── Logs ────────────────────────────────────────────────────────────────────
+
+  logs:api:
+    desc: View API logs in dev
+    cmd: gcloud run services logs read review-api-dev --region=asia-southeast1 --limit=50 --project=humini-review
+
+  logs:web:
+    desc: View Web logs in dev
+    cmd: gcloud run services logs read review-web-dev --region=asia-southeast1 --limit=50 --project=humini-review
+
+  logs:ui:
+    desc: View UI logs in dev
+    cmd: gcloud run services logs read review-ui-dev --region=asia-southeast1 --limit=50 --project=humini-review
+
+  # ─── Status ──────────────────────────────────────────────────────────────────
+
+  status:
+    desc: Show all Cloud Run services status
+    cmd: gcloud run services list --region=asia-southeast1 --project=humini-review --format="table(SERVICE,URL,LAST_DEPLOYED_BY)"
+
+  health:
+    desc: Check API health on dev
+    cmd: curl -s https://review-api-dev-1049089489429.asia-southeast1.run.app/health | python3 -m json.tool
