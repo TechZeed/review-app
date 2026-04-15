@@ -1,28 +1,11 @@
 version: "3"
 
-vars:
-  CLOUDSQL_CONNECTION: humini-review:asia-southeast1:review-db-dev
-  PROXY_PORT: "6199"
-
 tasks:
-  # ─── Cloud SQL Proxy ─────────────────────────────────────────────────────────
-
-  startproxy:
-    desc: Start Cloud SQL Auth Proxy on localhost:{{.PROXY_PORT}}
-    cmd: cloud-sql-proxy {{.CLOUDSQL_CONNECTION}} --port={{.PROXY_PORT}}
-
   # ─── Dev Server ──────────────────────────────────────────────────────────────
 
   server:
-    desc: Start API dev server (requires proxy running)
+    desc: Start API dev server
     cmd: npx tsx --env-file=.env src/server.ts
-
-  start:
-    desc: Start proxy + dev server together
-    cmds:
-      - task: startproxy &
-      - sleep 2
-      - task: server
 
   # ─── Database ────────────────────────────────────────────────────────────────
 
@@ -47,8 +30,8 @@ tasks:
     cmd: npx tsx --env-file=.env src/db/seed-cli.ts down
 
   psql:
-    desc: Connect to Cloud SQL via psql through proxy
-    cmd: PGPASSWORD=$(grep POSTGRES_PASSWORD .env | cut -d= -f2) psql -h localhost -p {{.PROXY_PORT}} -U review_user -d review_app
+    desc: Connect to local Postgres
+    cmd: PGPASSWORD=$(grep POSTGRES_PASSWORD .env | cut -d= -f2) psql -h localhost -p $(grep POSTGRES_PORT .env | cut -d= -f2) -U review_user -d review_app
 
   # ─── Stripe ──────────────────────────────────────────────────────────────────
 
