@@ -70,12 +70,13 @@ export async function initDb(): Promise<void> {
   }
 
   const isCloudRun = !!appenv.get("K_SERVICE");
-  const hasConnectionName = !!appenv.get("CLOUDSQL_CONNECTION_NAME");
   const hostIsSocket = (appenv.get("POSTGRES_HOST") || "").startsWith("/cloudsql");
 
-  if (isCloudRun || hasConnectionName || hostIsSocket) {
+  if (isCloudRun || hostIsSocket) {
+    // Cloud Run: use Unix socket via Cloud SQL Auth Proxy sidecar
     _sequelize = getGcpCloudSqlConnection();
   } else {
+    // Local dev: connect via TCP (proxy on localhost:6199 or docker on localhost:6132)
     _sequelize = getPlainSqlConnection();
   }
 

@@ -11,15 +11,17 @@ import type {
   SubscriptionRecord,
 } from './subscription.types.js';
 
-const PRICE_MAP: Record<string, string | undefined> = {
-  'pro_individual:monthly': env.STRIPE_PRO_PRICE_ID,
-  'pro_individual:annual': env.STRIPE_PRO_PRICE_ID, // separate annual price can be added later
-  'employer_small:monthly': env.STRIPE_EMPLOYER_PRICE_ID,
-  'employer_medium:monthly': env.STRIPE_EMPLOYER_PRICE_ID,
-  'employer_large:monthly': env.STRIPE_EMPLOYER_PRICE_ID,
-  'recruiter_basic:monthly': env.STRIPE_RECRUITER_BASIC_PRICE_ID,
-  'recruiter_premium:monthly': env.STRIPE_RECRUITER_PREMIUM_PRICE_ID,
-};
+function getPriceMap(): Record<string, string | undefined> {
+  return {
+    'pro_individual:monthly': process.env.STRIPE_PRICE_PRO_MONTHLY,
+    'pro_individual:annual': process.env.STRIPE_PRICE_PRO_ANNUAL,
+    'employer_small:monthly': process.env.STRIPE_PRICE_EMPLOYER_SMALL,
+    'employer_medium:monthly': process.env.STRIPE_PRICE_EMPLOYER_MEDIUM,
+    'employer_large:monthly': process.env.STRIPE_PRICE_EMPLOYER_LARGE,
+    'recruiter_basic:monthly': process.env.STRIPE_PRICE_RECRUITER_BASIC,
+    'recruiter_premium:monthly': process.env.STRIPE_PRICE_RECRUITER_PREMIUM,
+  };
+}
 
 const TIER_TO_DB_TIER: Record<string, string> = {
   pro_individual: 'pro',
@@ -51,7 +53,7 @@ export class SubscriptionService {
 
     // Resolve price ID
     const priceKey = `${input.tier}:${input.billingCycle}`;
-    const priceId = PRICE_MAP[priceKey];
+    const priceId = getPriceMap()[priceKey];
     if (!priceId) {
       throw new AppError(
         `Invalid tier/billing combination: ${priceKey}`,

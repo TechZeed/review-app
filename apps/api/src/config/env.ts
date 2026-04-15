@@ -29,11 +29,15 @@ const EnvSchema = z.object({
 
   // ---- Payments (Stripe) ----
   STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
-  STRIPE_PRO_PRICE_ID: z.string().optional(),
-  STRIPE_EMPLOYER_PRICE_ID: z.string().optional(),
-  STRIPE_RECRUITER_BASIC_PRICE_ID: z.string().optional(),
-  STRIPE_RECRUITER_PREMIUM_PRICE_ID: z.string().optional(),
+  STRIPE_PRICE_PRO_MONTHLY: z.string().optional(),
+  STRIPE_PRICE_PRO_ANNUAL: z.string().optional(),
+  STRIPE_PRICE_EMPLOYER_SMALL: z.string().optional(),
+  STRIPE_PRICE_EMPLOYER_MEDIUM: z.string().optional(),
+  STRIPE_PRICE_EMPLOYER_LARGE: z.string().optional(),
+  STRIPE_PRICE_RECRUITER_BASIC: z.string().optional(),
+  STRIPE_PRICE_RECRUITER_PREMIUM: z.string().optional(),
 
   // ---- OTP (Twilio) ----
   TWILIO_ACCOUNT_SID: z.string().optional(),

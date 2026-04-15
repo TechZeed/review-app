@@ -1,0 +1,79 @@
+version: "3"
+
+vars:
+  CLOUDSQL_CONNECTION: humini-review:asia-southeast1:review-db-dev
+  PROXY_PORT: "6199"
+  ENV_FILE: .env.dev
+
+tasks:
+  proxy:
+    desc: Start Cloud SQL Auth Proxy on localhost:{{.PROXY_PORT}}
+    cmd: cloud-sql-proxy {{.CLOUDSQL_CONNECTION}} --port={{.PROXY_PORT}}
+
+  dev:
+    desc: Start API dev server (requires proxy running)
+    cmd: npx tsx --env-file={{.ENV_FILE}} src/server.ts
+
+  start:
+    desc: Start proxy + dev server together
+    deps: []
+    cmds:
+      - task: proxy &
+      - sleep 2
+      - task: dev
+
+  migrate:
+    desc: Run database migrations via proxy
+    cmd: npx tsx --env-file={{.ENV_FILE}} src/db/cli.ts up
+
+  migrate:down:
+    desc: Rollback last migration
+    cmd: npx tsx --env-file={{.ENV_FILE}} src/db/cli.ts down
+
+  migrate:status:
+    desc: Show migration status
+    cmd: npx tsx --env-file={{.ENV_FILE}} src/db/cli.ts status
+
+  seed:
+    desc: Seed demo data
+    cmd: npx tsx --env-file={{.ENV_FILE}} src/db/seed-cli.ts up
+
+  seed:down:
+    desc: Remove seed data
+    cmd: npx tsx --env-file={{.ENV_FILE}} src/db/seed-cli.ts down
+
+  db:connect:
+    desc: Connect to Cloud SQL via psql through proxy
+    cmd: PGPASSWORD=$(grep POSTGRES_PASSWORD {{.ENV_FILE}} | cut -d= -f2) psql -h localhost -p {{.PROXY_PORT}} -U review_user -d dev_review_db
+
+  stripe:listen:
+    desc: Forward Stripe webhooks to local API
+    cmd: stripe listen --forward-to http://localhost:3000/api/v1/subscriptions/webhook
+
+  test:
+    desc: Run tests
+    cmd: npx vitest run
+
+  build:
+    desc: TypeScript build check
+    cmd: npx tsc --noEmit
+
+  deploy:api:
+    desc: Deploy API to Cloud Run dev
+    dir: "{{.ROOT_DIR}}"
+    cmd: node deploy.js api dev
+
+  deploy:web:
+    desc: Deploy Web to Cloud Run dev
+    dir: "{{.ROOT_DIR}}"
+    cmd: node deploy.js web dev
+
+  deploy:ui:
+    desc: Deploy UI to Cloud Run dev
+    dir: "{{.ROOT_DIR}}"
+    cmd: node deploy.js ui dev
+
+  deploy:all:
+    desc: Deploy all services to Cloud Run dev
+    dir: "{{.ROOT_DIR}}"
+    cmd: node deploy.js all dev
