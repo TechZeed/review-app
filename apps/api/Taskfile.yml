@@ -3,7 +3,5 @@ version: "3"
 includes:
   local:
     taskfile: Taskfile.local.yml
-    dotenv: [".env"]
   dev:
     taskfile: Taskfile.dev.yml
-    dotenv: [".env.dev"]

@@ -13,29 +13,29 @@ tasks:
 
   psql:
     desc: Connect to dev Cloud SQL via proxy
-    cmd: PGPASSWORD=$(grep POSTGRES_PASSWORD .env.dev | cut -d= -f2) psql -h localhost -p {{.PROXY_PORT}} -U review_user -d dev_review_db
+    cmd: ./run.sh dev psql
 
   # ─── Database ────────────────────────────────────────────────────────────────
 
   migrate:
     desc: Run migrations on dev Cloud SQL
-    cmd: npx tsx --env-file=.env.dev src/db/cli.ts up
+    cmd: ./run.sh dev migrate
 
   migrate:down:
     desc: Rollback last migration on dev Cloud SQL
-    cmd: npx tsx --env-file=.env.dev src/db/cli.ts down
+    cmd: ./run.sh dev migrate:down
 
   migrate:status:
     desc: Show migration status on dev Cloud SQL
-    cmd: npx tsx --env-file=.env.dev src/db/cli.ts status
+    cmd: ./run.sh dev migrate:status
 
   seed:
     desc: Seed demo data on dev Cloud SQL
-    cmd: npx tsx --env-file=.env.dev src/db/seed-cli.ts up
+    cmd: ./run.sh dev seed
 
   seed:down:
     desc: Remove seed data from dev Cloud SQL
-    cmd: npx tsx --env-file=.env.dev src/db/seed-cli.ts down
+    cmd: ./run.sh dev seed:down
 
   # ─── Deploy ──────────────────────────────────────────────────────────────────
 
