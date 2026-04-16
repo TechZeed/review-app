@@ -30,6 +30,9 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
+      "apiUrl": "https://review-api.teczeed.com",
+      "webUrl": "https://review-scan.teczeed.com",
+      "dashboardUrl": "https://review-dashboard.teczeed.com",
       "eas": {
         "projectId": "0a16994f-a788-4021-bd41-ad1afed8da3f"
       }
