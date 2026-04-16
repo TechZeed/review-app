@@ -1,4 +1,5 @@
 import { faker } from "@faker-js/faker";
+import { QueryTypes } from "sequelize";
 import type { Migration } from "../umzug.js";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
@@ -123,13 +124,11 @@ export const up: Migration = async ({ context: sequelize }) => {
       "Seed config has no users defined. Please add users to seed-config.json before running seed.",
     );
   }
-  const existingUsers = await queryInterface.select(
-    null,
-    "users",
-    { attributes: ["email"] },
-  ) as { email: string }[];
-  const seedEmailSet = new Set(seedEmails);
-  const existingSeedUsers = existingUsers.filter((user) => seedEmailSet.has(user.email));
+  const inClause = seedEmails.map((email) => sequelize.escape(email)).join(", ");
+  const existingSeedUsers = await sequelize.query<{ email: string }>(
+    `SELECT email FROM users WHERE email IN (${inClause})`,
+    { type: QueryTypes.SELECT },
+  );
 
   if (existingSeedUsers.length === seedEmails.length) {
     console.log("Demo seed users already exist. Skipping seed.");
