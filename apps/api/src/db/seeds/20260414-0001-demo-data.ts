@@ -1,5 +1,4 @@
 import { faker } from "@faker-js/faker";
-import { Op } from "sequelize";
 import type { Migration } from "../umzug.js";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
@@ -120,13 +119,17 @@ export const up: Migration = async ({ context: sequelize }) => {
   // This allows seeding demo data into databases that already contain real users.
   const seedEmails = users.map((user) => user.email);
   if (seedEmails.length === 0) {
-    throw new Error("Seed config has no users; cannot perform idempotency check.");
+    throw new Error(
+      "Seed config has no users defined. Please add users to seed-config.json before running seed.",
+    );
   }
-  const existingSeedUsers = await queryInterface.select(
+  const existingUsers = await queryInterface.select(
     null,
     "users",
-    { attributes: ["email"], where: { email: { [Op.in]: seedEmails } } },
+    { attributes: ["email"] },
   ) as { email: string }[];
+  const seedEmailSet = new Set(seedEmails);
+  const existingSeedUsers = existingUsers.filter((user) => seedEmailSet.has(user.email));
 
   if (existingSeedUsers.length === seedEmails.length) {
     console.log("Demo seed users already exist. Skipping seed.");
