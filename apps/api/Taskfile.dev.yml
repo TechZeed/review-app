@@ -62,16 +62,24 @@ tasks:
   # ─── Mobile ──────────────────────────────────────────────────────────────────
 
   deploy:mobile:
-    desc: Build and submit mobile app to Play Store internal track
+    desc: Build locally and submit to Play Store internal track
+    dir: "{{.ROOT_DIR}}/apps/mobile"
+    cmds:
+      - eas build --platform android --profile production --local --output ./build.aab --non-interactive
+      - eas submit --platform android --path ./build.aab --non-interactive
+      - rm -f ./build.aab
+
+  deploy:mobile:preview:
+    desc: Build preview APK locally
+    dir: "{{.ROOT_DIR}}/apps/mobile"
+    cmd: eas build --platform android --profile preview --local --output ./preview.apk --non-interactive
+
+  deploy:mobile:cloud:
+    desc: Build on EAS cloud and submit (for production releases)
     dir: "{{.ROOT_DIR}}/apps/mobile"
     cmds:
       - eas build --platform android --profile production --non-interactive
       - eas submit --platform android --latest --non-interactive
-
-  deploy:mobile:preview:
-    desc: Build preview APK for internal testing
-    dir: "{{.ROOT_DIR}}/apps/mobile"
-    cmd: eas build --platform android --profile preview --non-interactive
 
   # ─── Logs ────────────────────────────────────────────────────────────────────
 
