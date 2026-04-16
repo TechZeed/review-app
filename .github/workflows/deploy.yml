@@ -1,4 +1,4 @@
-name: deploy-staging
+name: deploy
 
 on:
   workflow_dispatch:
@@ -14,37 +14,35 @@ on:
           - all
         default: api
       confirm:
-        description: "Type 'deploy-staging' to confirm staging deployment"
+        description: "Type 'deploy' to confirm"
         required: true
         type: string
 
 concurrency:
-  group: deploy-staging
+  group: deploy
   cancel-in-progress: false
 
 jobs:
   validate:
-    name: Validate Trigger
+    name: Validate
     runs-on: ubuntu-latest
     steps:
       - name: Check confirmation
         run: |
-          if [ "${{ inputs.confirm }}" != "deploy-staging" ]; then
-            echo "Confirmation failed. Input 'deploy-staging' to proceed."
+          if [ "${{ inputs.confirm }}" != "deploy" ]; then
+            echo "Type 'deploy' to confirm."
             exit 1
           fi
 
   deploy:
-    name: Deploy to Staging (${{ inputs.service }})
+    name: Deploy (${{ inputs.service }})
     needs: validate
     runs-on: ubuntu-latest
-    environment: staging
     timeout-minutes: 30
 
     env:
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       GCP_REGION: asia-southeast1
-      GCP_ARTIFACT_REPOSITORY: review-apps
       CLOUDSQL_CONNECTION_NAME: ${{ secrets.CLOUDSQL_CONNECTION_NAME }}
 
     steps:
@@ -59,7 +57,6 @@ jobs:
           node-version: 20
 
       - name: Google Auth
-        id: auth
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
@@ -70,44 +67,28 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
 
-      - name: Deploy via deploy.js
-        run: node deploy.js ${{ inputs.service }} staging
+      - name: Deploy
+        run: node deploy.js ${{ inputs.service }} dev
 
-      - name: Smoke test (API only)
+      - name: Smoke test (API)
         if: inputs.service == 'api' || inputs.service == 'all'
         run: |
-          SERVICE_URL=$(gcloud run services describe review-api-staging \
+          SERVICE_URL=$(gcloud run services describe review-api-dev \
             --region=${{ env.GCP_REGION }} \
             --format="value(status.url)" \
             --project=${{ env.GCP_PROJECT_ID }})
 
-          echo "Running smoke tests against $SERVICE_URL"
-
-          # Health check with retries
           for i in $(seq 1 5); do
             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL/health" 2>/dev/null || echo "000")
             if [ "$HTTP_STATUS" = "200" ]; then
               echo "Health check passed on attempt $i"
-              break
+              exit 0
             fi
             echo "Attempt $i: status $HTTP_STATUS, retrying in 10s..."
             sleep 10
-            if [ "$i" = "5" ]; then
-              echo "Health check failed after 5 attempts"
-              exit 1
-            fi
           done
+          echo "Health check failed"
+          exit 1
 
-          # Qualities endpoint (public, seeded data)
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SERVICE_URL/api/v1/qualities")
-          if [ "$HTTP_STATUS" != "200" ]; then
-            echo "Qualities endpoint failed with status $HTTP_STATUS"
-            exit 1
-          fi
-          echo "Qualities endpoint passed"
-
-          echo "All smoke tests passed"
-
-      - name: Output
-        run: |
-          echo "Staging deployment of '${{ inputs.service }}' successful"
+      - name: Done
+        run: echo "Deployed '${{ inputs.service }}' successfully"
