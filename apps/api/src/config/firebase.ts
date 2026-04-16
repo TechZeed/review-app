@@ -1,4 +1,5 @@
 import admin from "firebase-admin";
+import { readFileSync } from "node:fs";
 import { env } from "./env.js";
 import { logger } from "./logger.js";
 
@@ -24,14 +25,24 @@ export function initializeFirebase(): void {
         }),
       });
     }
-    // Option 2: GOOGLE_APPLICATION_CREDENTIALS file path (auto-detected by SDK)
+    // Option 2: Service account JSON file path
+    else if (env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      const serviceAccount = JSON.parse(
+        readFileSync(env.FIREBASE_SERVICE_ACCOUNT_PATH, "utf-8"),
+      );
+      firebaseApp = admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: env.FIREBASE_PROJECT_ID,
+      });
+    }
+    // Option 3: GOOGLE_APPLICATION_CREDENTIALS file path (auto-detected by SDK)
     else if (env.GOOGLE_APPLICATION_CREDENTIALS) {
       firebaseApp = admin.initializeApp({
         credential: admin.credential.applicationDefault(),
         projectId: env.FIREBASE_PROJECT_ID,
       });
     }
-    // Option 3: Default application credentials (Cloud Run, GCE)
+    // Option 4: Default application credentials (Cloud Run, GCE)
     else {
       firebaseApp = admin.initializeApp({
         credential: admin.credential.applicationDefault(),

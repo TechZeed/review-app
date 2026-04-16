@@ -22,6 +22,7 @@ const EnvSchema = z.object({
   FIREBASE_CLIENT_EMAIL: z.string().email().optional(),
   FIREBASE_PRIVATE_KEY: z.string().optional(),
   GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
+  FIREBASE_SERVICE_ACCOUNT_PATH: z.string().optional(),
 
   // ---- Storage (GCP Cloud Storage) ----
   GCP_BUCKET_NAME: z.string().min(1, "GCP_BUCKET_NAME is required"),

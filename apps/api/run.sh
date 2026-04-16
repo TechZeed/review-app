@@ -29,17 +29,22 @@ set -a
 source "$ENV_FILE"
 set +a
 
+# Use npx for local deps
+TSX="npx tsx"
+VITEST="npx vitest"
+TSC="npx tsc"
+
 # Run the command
 case "$CMD" in
-  server)         exec tsx "$SCRIPT_DIR/src/server.ts" ;;
-  migrate)        exec tsx "$SCRIPT_DIR/src/db/cli.ts" up ;;
-  migrate:down)   exec tsx "$SCRIPT_DIR/src/db/cli.ts" down ;;
-  migrate:status) exec tsx "$SCRIPT_DIR/src/db/cli.ts" status ;;
-  seed)           exec tsx "$SCRIPT_DIR/src/db/seed-cli.ts" up ;;
-  seed:down)      exec tsx "$SCRIPT_DIR/src/db/seed-cli.ts" down ;;
-  seed:status)    exec tsx "$SCRIPT_DIR/src/db/seed-cli.ts" status ;;
-  psql)           exec psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" ;;
-  test)           exec vitest run ;;
-  build)          exec tsc --noEmit ;;
+  server)         exec $TSX "$SCRIPT_DIR/src/server.ts" ;;
+  migrate)        exec $TSX "$SCRIPT_DIR/src/db/cli.ts" up ;;
+  migrate:down)   exec $TSX "$SCRIPT_DIR/src/db/cli.ts" down ;;
+  migrate:status) exec $TSX "$SCRIPT_DIR/src/db/cli.ts" status ;;
+  seed)           exec $TSX "$SCRIPT_DIR/src/db/seed-cli.ts" up ;;
+  seed:down)      exec $TSX "$SCRIPT_DIR/src/db/seed-cli.ts" down ;;
+  seed:status)    exec $TSX "$SCRIPT_DIR/src/db/seed-cli.ts" status ;;
+  psql)           PGPASSWORD="$POSTGRES_PASSWORD" exec psql -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" ;;
+  test)           exec $VITEST run ;;
+  build)          exec $TSC --noEmit ;;
   *)              echo "Unknown command: $CMD"; exit 1 ;;
 esac

@@ -13,3 +13,42 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   firebaseToken: z.string().min(1, 'Firebase token is required'),
 });
+
+export const exchangeFirebaseTokenSchema = z.object({
+  firebaseToken: z.string().min(1, 'Firebase token is required'),
+});
+
+export const passwordLoginSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+export const createUserSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  name: z.string().min(2, 'Name must be at least 2 characters').max(100),
+  role: z.enum(['INDIVIDUAL', 'EMPLOYER', 'RECRUITER', 'ADMIN']),
+});
+
+export const roleRequestSchema = z.object({
+  requestedRole: z.enum(['EMPLOYER', 'RECRUITER']),
+  companyName: z.string().min(1, 'Company name is required').max(255),
+  companyWebsite: z.string().min(1, 'Company website is required').max(255),
+  reason: z.string().min(10, 'Reason must be at least 10 characters'),
+});
+
+export const updateRoleSchema = z.object({
+  role: z.enum(['INDIVIDUAL', 'EMPLOYER', 'RECRUITER', 'ADMIN']),
+});
+
+export const updateStatusSchema = z.object({
+  status: z.enum(['active', 'suspended']),
+});
+
+export const roleRequestIdParamSchema = z.object({
+  id: z.string().uuid('Invalid role request ID'),
+});
+
+export const userIdParamSchema = z.object({
+  id: z.string().uuid('Invalid user ID'),
+});

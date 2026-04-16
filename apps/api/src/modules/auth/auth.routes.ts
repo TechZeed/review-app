@@ -1,14 +1,28 @@
 import { Router } from 'express';
 import { AuthController } from './auth.controller.js';
-import { validateBody } from '../../middleware/validate.js';
+import { validateBody, validateParams } from '../../middleware/validate.js';
 import { authenticate } from '../../middleware/authenticate.js';
+import { requireRole } from '../../middleware/authorize.js';
+import { ADMIN_ROLES } from '../../middleware/roles.js';
 import { authRateLimit } from '../../middleware/rateLimit.js';
-import { registerSchema, loginSchema } from './auth.validation.js';
+import {
+  registerSchema,
+  loginSchema,
+  exchangeFirebaseTokenSchema,
+  passwordLoginSchema,
+  createUserSchema,
+  roleRequestSchema,
+  updateRoleSchema,
+  updateStatusSchema,
+  roleRequestIdParamSchema,
+  userIdParamSchema,
+} from './auth.validation.js';
 
 export const authRouter = Router();
 const controller = new AuthController();
 
-// Public routes (with rate limiting)
+// ──── Public routes (with rate limiting) ────
+
 authRouter.post(
   '/register',
   authRateLimit,
@@ -17,21 +31,100 @@ authRouter.post(
 );
 
 authRouter.post(
-  '/login',
+  '/exchange-token',
   authRateLimit,
-  validateBody(loginSchema),
-  controller.login
+  validateBody(exchangeFirebaseTokenSchema),
+  controller.exchangeToken
 );
 
-// Protected routes
+authRouter.post(
+  '/login',
+  authRateLimit,
+  validateBody(passwordLoginSchema),
+  controller.passwordLogin
+);
+
+// ──── Authenticated routes (any role) ────
+
+authRouter.get(
+  '/me',
+  authenticate,
+  controller.me
+);
+
 authRouter.post(
   '/logout',
   authenticate,
   controller.logout
 );
 
-authRouter.get(
-  '/me',
+authRouter.post(
+  '/role-request',
   authenticate,
-  controller.me
+  validateBody(roleRequestSchema),
+  controller.requestRoleUpgrade
+);
+
+authRouter.get(
+  '/role-request/me',
+  authenticate,
+  controller.getMyRoleRequest
+);
+
+// ──── Admin routes ────
+
+authRouter.post(
+  '/admin/create-user',
+  authenticate,
+  requireRole(ADMIN_ROLES),
+  validateBody(createUserSchema),
+  controller.createUser
+);
+
+authRouter.get(
+  '/admin/role-requests',
+  authenticate,
+  requireRole(ADMIN_ROLES),
+  controller.listRoleRequests
+);
+
+authRouter.post(
+  '/admin/role-requests/:id/approve',
+  authenticate,
+  requireRole(ADMIN_ROLES),
+  validateParams(roleRequestIdParamSchema),
+  controller.approveRoleRequest
+);
+
+authRouter.post(
+  '/admin/role-requests/:id/reject',
+  authenticate,
+  requireRole(ADMIN_ROLES),
+  validateParams(roleRequestIdParamSchema),
+  controller.rejectRoleRequest
+);
+
+authRouter.get(
+  '/admin/users',
+  authenticate,
+  requireRole(ADMIN_ROLES),
+  controller.listUsers
+);
+
+authRouter.patch(
+  '/admin/users/:id/role',
+  authenticate,
+  requireRole(ADMIN_ROLES),
+  validateParams(userIdParamSchema),
+  validateBody(updateRoleSchema),
+  controller.updateUserRole
+);
+
+authRouter.patch(
+  '/admin/users/:id/status',
+  authenticate,
+  requireRole(ADMIN_ROLES),
+  validateParams(userIdParamSchema),
+  validateBody(updateStatusSchema),
+  controller.updateUserStatus
 );

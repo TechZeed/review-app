@@ -90,7 +90,7 @@ export async function initDb(): Promise<void> {
 }
 
 async function initAllModels(sequelize: Sequelize): Promise<void> {
-  const { initUserModel } = await import("../modules/auth/auth.model.js");
+  const { initUserModel, initRoleRequestModel } = await import("../modules/auth/auth.model.js");
   const { initProfileModel } = await import("../modules/profile/profile.model.js");
   const { initOrganizationModel, initProfileOrganizationModel } = await import("../modules/organization/organization.model.js");
   const { initReviewModel } = await import("../modules/review/review.model.js");
@@ -103,6 +103,7 @@ async function initAllModels(sequelize: Sequelize): Promise<void> {
   const { initQualityModel, initQualityScoreModel } = await import("../modules/quality/quality.model.js");
 
   initUserModel(sequelize);
+  initRoleRequestModel(sequelize);
   initProfileModel(sequelize);
   initOrganizationModel(sequelize);
   initProfileOrganizationModel(sequelize);
@@ -122,7 +123,7 @@ async function initAllModels(sequelize: Sequelize): Promise<void> {
 }
 
 async function setupAssociations(): Promise<void> {
-  const { User } = await import("../modules/auth/auth.model.js");
+  const { User, RoleRequest } = await import("../modules/auth/auth.model.js");
   const { Profile } = await import("../modules/profile/profile.model.js");
   const { Organization, ProfileOrganization } = await import("../modules/organization/organization.model.js");
   const { Review } = await import("../modules/review/review.model.js");
@@ -133,6 +134,10 @@ async function setupAssociations(): Promise<void> {
   const { RecruiterSearch, ContactRequest } = await import("../modules/recruiter/recruiter.model.js");
   const { FraudFlag } = await import("../modules/employer/employer.model.js");
   const { Quality, QualityScore } = await import("../modules/quality/quality.model.js");
+
+  // User -> RoleRequest
+  User.hasMany(RoleRequest, { foreignKey: "userId", as: "roleRequests" });
+  RoleRequest.belongsTo(User, { foreignKey: "userId", as: "user" });
 
   // User -> Profile (one-to-one)
   User.hasOne(Profile, { foreignKey: "userId", as: "profile" });

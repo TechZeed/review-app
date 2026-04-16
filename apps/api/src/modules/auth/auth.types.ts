@@ -19,6 +19,33 @@ export interface LoginInput {
   firebaseToken: string;
 }
 
+export interface PasswordLoginInput {
+  email: string;
+  password: string;
+}
+
+export interface CreateUserInput {
+  email: string;
+  password: string;
+  name: string;
+  role: 'INDIVIDUAL' | 'EMPLOYER' | 'RECRUITER' | 'ADMIN';
+}
+
+export interface RoleRequestInput {
+  requestedRole: 'EMPLOYER' | 'RECRUITER';
+  companyName: string;
+  companyWebsite: string;
+  reason: string;
+}
+
+export interface UpdateRoleInput {
+  role: 'INDIVIDUAL' | 'EMPLOYER' | 'RECRUITER' | 'ADMIN';
+}
+
+export interface UpdateStatusInput {
+  status: 'active' | 'suspended';
+}
+
 export interface AuthPayload {
   user: {
     id: string;
@@ -43,6 +70,7 @@ export interface JwtClaims {
   isApproved: boolean;
   status: string;
   tier?: string;
+  provider?: string;
   iat?: number;
   exp?: number;
 }

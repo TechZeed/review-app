@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
+import { signOutUser } from './lib/auth-service';
 
 export interface AuthUser {
   token: string;
@@ -62,6 +63,7 @@ export default function App() {
   };
 
   const logout = () => {
+    signOutUser().catch(() => {});
     handleSetUser(null);
     queryClient.clear();
   };

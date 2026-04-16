@@ -1,0 +1,44 @@
+import { signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
+import { auth, googleProvider } from './firebase';
+import { apiFetch } from './api';
+
+export interface ExchangeTokenResponse {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    status: string;
+    isApproved: boolean;
+    isActive: boolean;
+  };
+  accessToken: string;
+}
+
+/**
+ * Sign in with Google via Firebase popup, then exchange the Firebase ID token
+ * for an app JWT from the backend.
+ */
+export async function signInWithGoogle(): Promise<ExchangeTokenResponse> {
+  const result = await signInWithPopup(auth, googleProvider);
+  const firebaseToken = await result.user.getIdToken();
+  return exchangeToken(firebaseToken);
+}
+
+/**
+ * Exchange a Firebase ID token for an app-level JWT.
+ */
+export async function exchangeToken(firebaseToken: string): Promise<ExchangeTokenResponse> {
+  return apiFetch<ExchangeTokenResponse>('/api/v1/auth/exchange-token', {
+    method: 'POST',
+    body: JSON.stringify({ firebaseToken }),
+  });
+}
+
+/**
+ * Sign out from Firebase and clear local storage.
+ */
+export async function signOutUser(): Promise<void> {
+  await firebaseSignOut(auth);
+  localStorage.removeItem('auth_user');
+}
