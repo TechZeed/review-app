@@ -1186,7 +1186,10 @@ npm run seed:reset
 
 ### Idempotency
 
-The `up` function checks if any users exist before seeding. If users are found, it logs a warning and exits without inserting. To re-seed, run `seed:down` first, then `seed:up`.
+The `up` function checks for the configured demo seed user emails (from `seed-config.json`), not all users in the database.  
+If all demo users already exist, seeding is skipped.  
+If only some demo users exist (partial seed), the seed fails fast and asks for cleanup before retrying.  
+This lets demo data be seeded in environments that already contain real users.
 
 ---
 
