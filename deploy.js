@@ -119,10 +119,10 @@ function deployApi(image, env) {
     CORS_ORIGINS: 'https://review-scan.teczeed.com,https://review-dashboard.teczeed.com,https://review-profile.teczeed.com',
   };
 
-  // Build --update-env-vars flags individually (avoids colon parsing issues)
-  const envFlags = Object.entries(envPairs)
-    .map(([k, v]) => `--update-env-vars=${k}=${v}`)
-    .join(' ');
+  // Build --set-env-vars with ^ delimiter (commas in values break default delimiter)
+  const envFlags = '--set-env-vars=^||^' + Object.entries(envPairs)
+    .map(([k, v]) => `${k}=${v}`)
+    .join('||');
 
   const cmd = [
     'gcloud run deploy', serviceName,
