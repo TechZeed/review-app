@@ -103,4 +103,4 @@ tasks:
 
   health:
     desc: Check API health on dev
-    cmd: curl -s https://review-api-dev-1049089489429.asia-southeast1.run.app/health | python3 -m json.tool
+    cmd: curl -s https://review-api.teczeed.com/health | python3 -m json.tool

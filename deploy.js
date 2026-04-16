@@ -86,7 +86,10 @@ function buildAndPush(service, env) {
   console.log(`Image: ${remoteImage}`);
   console.log(`========================================`);
 
-  run(`docker build -t ${localImage} apps/${service}/`, `Build ${service}`);
+  const buildArgs = (service === 'web' || service === 'ui')
+    ? `--build-arg VITE_API_URL=https://review-api.teczeed.com --build-arg VITE_FIREBASE_API_KEY=AIzaSyBAQ3fKCEiCn-z7VPG9jEzQ-XA9rCWBvhE --build-arg VITE_FIREBASE_AUTH_DOMAIN=humini-review.firebaseapp.com --build-arg VITE_FIREBASE_PROJECT_ID=humini-review`
+    : '';
+  run(`docker build ${buildArgs} -t ${localImage} apps/${service}/`, `Build ${service}`);
   run(`docker tag ${localImage} ${remoteImage}`, `Tag ${service}`);
   run(`docker push ${remoteImage}`, `Push ${service}`);
 
@@ -111,9 +114,9 @@ function deployApi(image, env) {
     REVIEW_COOLDOWN_DAYS: '7',
     SIGNED_URL_EXPIRY_MINUTES: '60',
     ENABLE_HTTP_LOGGING: 'false',
-    APP_URL: `https://review-api-${env}-mtvmlsco4a-as.a.run.app`,
-    FRONTEND_URL: `https://review-web-${env}-mtvmlsco4a-as.a.run.app`,
-    CORS_ORIGINS: `https://review-web-${env}-mtvmlsco4a-as.a.run.app`,
+    APP_URL: 'https://review-api.teczeed.com',
+    FRONTEND_URL: 'https://review-scan.teczeed.com',
+    CORS_ORIGINS: 'https://review-scan.teczeed.com,https://review-dashboard.teczeed.com,https://review-profile.teczeed.com',
   };
 
   // Build --update-env-vars flags individually (avoids colon parsing issues)
