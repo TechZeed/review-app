@@ -1,5 +1,4 @@
 import { faker } from "@faker-js/faker";
-import { QueryTypes } from "sequelize";
 import type { Migration } from "../umzug.js";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
@@ -119,13 +118,11 @@ export const up: Migration = async ({ context: sequelize }) => {
   // Idempotency check based on known demo users only.
   // This allows seeding demo data into databases that already contain real users.
   const seedEmails = users.map((user) => user.email);
-  const existingSeedUsers = await sequelize.query<{ email: string }>(
-    'SELECT email FROM users WHERE email IN (:seedEmails)',
-    {
-      replacements: { seedEmails },
-      type: QueryTypes.SELECT,
-    },
-  );
+  const existingSeedUsers = await queryInterface.select(
+    null,
+    "users",
+    { attributes: ["email"], where: { email: seedEmails } },
+  ) as { email: string }[];
 
   if (existingSeedUsers.length === seedEmails.length) {
     console.log("Demo seed users already exist. Skipping seed.");
