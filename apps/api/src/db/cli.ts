@@ -29,8 +29,20 @@ if (cmd === "down") {
 }
 
 if (cmd === "status") {
-  console.log("Migration status requires database initialization. Use 'up' or 'down' commands.");
-  process.exit(1);
+  try {
+    await initDb();
+    const { migrator } = await import("./umzug.js");
+    const pending = await migrator.pending();
+    const executed = await migrator.executed();
+    console.log(`Executed: ${executed.length}`);
+    executed.forEach((m) => console.log(`  ✓ ${m.name}`));
+    console.log(`Pending: ${pending.length}`);
+    pending.forEach((m) => console.log(`  ○ ${m.name}`));
+    process.exit(0);
+  } catch (error) {
+    console.error("Status check failed:", error);
+    process.exit(1);
+  }
 }
 
 console.log("Usage: tsx src/db/cli.ts <up|down|status> [to]");
