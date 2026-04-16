@@ -185,19 +185,31 @@ Data safety, app category, and store listing are **not required for internal tes
 
 ## 6. GitHub Workflows
 
-| Workflow | Trigger | Status |
-|---|---|---|
-| `ci.yml` | Push to main + PRs | Running but **failing** (test issues) |
-| `deploy-staging.yml` | Manual (workflow_dispatch) | **Working** — last run succeeded |
-| `deploy-prod.yml` | Manual (workflow_dispatch) | Not tested yet |
-| `deploy-mobile.yml` | Manual (workflow_dispatch) | Ready — all secrets set |
+| Workflow | Trigger | Inputs | Status |
+|---|---|---|---|
+| `ci.yml` | Push to main + PRs | — | Running, failing (test issues) |
+| `deploy-staging.yml` | Manual | service: api/web/ui/all | **Working** — last run succeeded |
+| `deploy-prod.yml` | Manual | service: api/web/ui/all | Not tested yet |
+| `deploy-mobile.yml` | Manual | profile: preview/production, build_mode: local/cloud, submit: bool | Ready — all secrets set |
+
+### GitHub Secrets
+
+| Secret | Status |
+|---|---|
+| GCP_PROJECT_ID | Set (`humini-review`) |
+| GCP_SA_KEY | Set (review-deployer SA key) |
+| CLOUDSQL_CONNECTION_NAME | Set |
+| GOOGLE_PLAY_SA_KEY | Set (eas-submit SA key) |
+| EXPO_TOKEN | Set |
 
 ---
 
 ## 7. Taskfile Commands
 
+All commands use `run.sh` which loads env from project root (`.env` for local, `.env.dev` for dev).
+
 ```
-# Local (docker postgres)
+# Local (docker postgres, .env)
 task local:server              # Start dev server
 task local:migrate             # Run migrations
 task local:seed                # Seed data
@@ -206,50 +218,88 @@ task local:stripe:listen       # Forward Stripe webhooks
 task local:test                # Run tests
 task local:build               # TypeScript check
 
-# Dev (Cloud SQL + Cloud Run)
+# Dev (Cloud SQL + Cloud Run, .env.dev)
 task dev:startproxy            # Cloud SQL proxy on :6199
 task dev:psql                  # Connect to Cloud SQL
 task dev:migrate               # Run migrations on Cloud SQL
 task dev:seed                  # Seed Cloud SQL
-task dev:deploy:api            # Deploy API
-task dev:deploy:web            # Deploy Web
-task dev:deploy:ui             # Deploy UI
-task dev:deploy:all            # Deploy everything
-task dev:deploy:mobile         # Build + submit to Play Store
-task dev:deploy:mobile:preview # Build preview APK
+task dev:deploy:api            # Deploy API to Cloud Run
+task dev:deploy:web            # Deploy Web to Cloud Run
+task dev:deploy:ui             # Deploy UI to Cloud Run
+task dev:deploy:all            # Deploy everything to Cloud Run
+task dev:deploy:mobile         # Local build + submit to Play Store (free, no queue)
+task dev:deploy:mobile:preview # Local preview APK
+task dev:deploy:mobile:cloud   # EAS cloud build (for production releases)
 task dev:logs:api              # View API logs
+task dev:logs:web              # View Web logs
+task dev:logs:ui               # View UI logs
 task dev:status                # Show Cloud Run services
 task dev:health                # Health check
 ```
 
+### Mobile Build Strategy
+
+| Method | Command | Cost | Queue |
+|---|---|---|---|
+| **Local build** (default) | `task dev:deploy:mobile` | Free | None |
+| **Local preview** | `task dev:deploy:mobile:preview` | Free | None |
+| **EAS cloud** (production) | `task dev:deploy:mobile:cloud` | Free (30/month) | 5-20 min |
+| **GitHub Actions local** | workflow_dispatch, build_mode=local | Free (GH minutes) | None |
+| **GitHub Actions cloud** | workflow_dispatch, build_mode=cloud | Free (EAS quota) | 5-20 min |
+
 ---
 
-## 8. Priority Fixes (Recommended Order)
+## 8. Auth Strategy (Spec 16)
+
+| Aspect | Decision |
+|---|---|
+| Registration | Google sign-in only (Firebase) |
+| Email/password | Admin-created accounts only |
+| Default role | INDIVIDUAL (auto-active) |
+| Role upgrade | User requests → admin approves |
+| Roles | INDIVIDUAL, EMPLOYER, RECRUITER, ADMIN |
+| JWT | HS256, 24h expiry, includes role + tier |
+
+### Auth Endpoints (15 total)
+- **Public:** POST /exchange-token, POST /login
+- **Authenticated:** GET /me, POST /logout, POST /role-request, GET /role-request/me
+- **Admin:** POST /admin/create-user, GET /admin/role-requests, POST /admin/role-requests/:id/approve, POST /admin/role-requests/:id/reject, GET /admin/users, PATCH /admin/users/:id/role, PATCH /admin/users/:id/status
+
+### Firebase
+- Project: humini-review
+- Web App ID: 1:1049089489429:web:5f0ab182785d1cf3f22c1c
+- Admin SDK SA: firebase-adminsdk-fbsvc@humini-review.iam.gserviceaccount.com
+- SA key in Secret Manager: `review-firebase-sa-key`
+
+---
+
+## 9. Priority Fixes (Recommended Order)
 
 ### P0 — Must fix for functional beta
 1. **Fix CI tests** — Update unit/integration tests to match actual code. CI should be green.
-2. **Add Firebase Auth or dev-login bypass** — Dashboard UI needs a working login flow.
-3. **Build mobile app screens** — Replace blank Expo app with actual QR scanner + review flow.
+2. **Build mobile app screens** — Replace blank Expo app with actual QR scanner + review flow.
 
 ### P1 — Needed before user testing
-4. **Complete Play Console** — Data safety, app category, store listing.
-5. **Stripe webhook** — Set up `stripe listen` forwarding or configure webhook URL on deployed API.
-6. **Test media upload** — Verify voice/video upload to GCS works end-to-end.
+3. **Complete Play Console** — Data safety, app category, store listing.
+4. **Stripe webhook** — Set up webhook URL on deployed API.
+5. **Test media upload** — Verify voice/video upload to GCS works end-to-end.
+6. **Create first admin user** — For role request approvals.
 
 ### P2 — Before production
-8. **Privacy policy page** — Create actual /privacy page in UI app (currently returns 404).
-9. **Video transcoding** — Implement FFmpeg Cloud Run job for 720p→480p.
-10. **Production deploy** — Test deploy-prod workflow, set up prod database + secrets.
+7. **Privacy policy page** — Create actual /privacy page in UI app.
+8. **Video transcoding** — Implement FFmpeg Cloud Run job for 720p→480p.
+9. **Production deploy** — Test deploy-prod workflow, set up prod database + secrets.
 
 ---
 
-## 9. Cost Estimate (Current Dev Environment)
+## 10. Cost Estimate (Current Dev Environment)
 
 | Resource | Monthly Est. |
 |---|---|
 | Cloud SQL (db-f1-micro) | ~$7 |
 | Cloud Run (6 services, min 0) | ~$0-10 |
 | Cloud Storage (<1GB) | ~$0.02 |
-| Secret Manager (7 secrets) | ~$0.42 |
+| Secret Manager (8 secrets) | ~$0.48 |
 | Artifact Registry (<5GB) | ~$0.50 |
+| EAS builds | $0 (local builds) |
 | **Total** | **~$8-18/month** |
