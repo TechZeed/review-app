@@ -1,6 +1,10 @@
 import { Link } from 'react-router-dom';
+import { getDashboardHomePath, getUiHostMode } from '../lib/domain';
 
 export default function NotFoundPage() {
+  const mode = getUiHostMode();
+  const homePath = getDashboardHomePath(mode);
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="text-center max-w-md">
@@ -13,10 +17,10 @@ export default function NotFoundPage() {
         </p>
         <div className="flex items-center justify-center gap-4">
           <Link
-            to="/dashboard"
+            to={homePath}
             className="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Go to Dashboard
+            {mode === 'profile' ? 'Go to Sign In' : 'Go to Dashboard'}
           </Link>
           <Link
             to="/login"

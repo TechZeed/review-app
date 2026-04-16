@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../App';
+import { getPublicProfileHref } from '../lib/domain';
 
 export default function NavBar() {
   const { user, logout } = useAuth();
@@ -40,7 +41,7 @@ export default function NavBar() {
                 {user.name}
               </span>
               <Link
-                to={`/profile/${user.profile_slug}`}
+                to={getPublicProfileHref(user.profile_slug)}
                 className="text-sm text-blue-600 hover:text-blue-800"
               >
                 Public Profile

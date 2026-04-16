@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 import { signOutUser } from './lib/auth-service';
+import { getDashboardHomePath, getUiHostMode } from './lib/domain';
 
 export interface AuthUser {
   token: string;
@@ -47,6 +48,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function HomeRoute() {
+  const mode = getUiHostMode();
+  return <Navigate to={getDashboardHomePath(mode)} replace />;
+}
+
 export default function App() {
   const [user, setUser] = useState<AuthUser | null>(() => {
     const stored = localStorage.getItem('auth_user');
@@ -83,7 +89,7 @@ export default function App() {
               }
             />
             <Route path="/profile/:slug" element={<ProfilePage />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<HomeRoute />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </BrowserRouter>
