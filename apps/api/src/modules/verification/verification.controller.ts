@@ -1,15 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { VerificationService } from './verification.service.js';
 import { VerificationRepository } from './verification.repo.js';
+import { ReviewToken } from './verification.model.js';
 
 export class VerificationController {
   private service: VerificationService;
 
   constructor() {
-    // In production, pass actual Sequelize model:
-    //   import { ReviewToken } from './verification.model.js';
-    //   new VerificationRepository(ReviewToken)
-    this.service = new VerificationService(new VerificationRepository(null as any));
+    this.service = new VerificationService(new VerificationRepository(ReviewToken));
   }
 
   initiate = async (req: Request, res: Response, next: NextFunction) => {

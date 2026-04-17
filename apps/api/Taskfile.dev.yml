@@ -1,6 +1,7 @@
 version: "3"
 
-dotenv: ['../../.env.dev']
+# dotenv is loaded by the parent Taskfile.yml (Task 3 disallows it in
+# included files). $GCP_REGION, $GCP_PROJECT_ID etc. come from there.
 
 vars:
   CLOUDSQL_CONNECTION: "{{.CLOUDSQL_CONNECTION_NAME}}"

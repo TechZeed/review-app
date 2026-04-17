@@ -70,31 +70,32 @@ export class ReviewService {
     // Validate review token
     const tokenHash = crypto.createHash('sha256').update(data.reviewToken).digest('hex');
 
-    let reviewTokenRecord: any = null;
-    try {
-      const { ReviewToken } = await import('../verification/verification.model.js');
-      reviewTokenRecord = await ReviewToken.findOne({ where: { tokenHash } });
-    } catch {
-      // ReviewToken model may not be available yet
+    const { ReviewToken } = await import('../verification/verification.model.js');
+    const reviewTokenRecord: any = await ReviewToken.findOne({ where: { tokenHash } });
+
+    if (!reviewTokenRecord) {
+      throw new AppError('Review token not found', 404, 'REVIEW_TOKEN_NOT_FOUND');
     }
 
-    if (reviewTokenRecord) {
-      // Validate token state using boolean fields (matches DB schema)
-      if (reviewTokenRecord.isUsed || reviewTokenRecord.is_used) {
-        throw new AppError('Review token has already been used', 400, 'REVIEW_TOKEN_ALREADY_USED');
-      }
-
-      if (new Date(reviewTokenRecord.expiresAt || reviewTokenRecord.expires_at) < new Date()) {
-        throw new AppError('Review token has expired', 400, 'REVIEW_TOKEN_EXPIRED');
-      }
+    if (reviewTokenRecord.isUsed || reviewTokenRecord.is_used) {
+      throw new AppError('Review token has already been used', 409, 'REVIEW_TOKEN_ALREADY_USED');
     }
+
+    if (new Date(reviewTokenRecord.expiresAt || reviewTokenRecord.expires_at) < new Date()) {
+      throw new AppError('Review token has expired', 410, 'REVIEW_TOKEN_EXPIRED');
+    }
+
+    // Derive phoneHash from the verified token if the client didn't pass
+    // one. verification.service.verifyOtp persists phoneHash on the token
+    // at OTP verify time, so it's available here without trusting the client.
+    const resolvedPhoneHash: string = data.phoneHash ?? reviewTokenRecord?.phoneHash ?? '';
 
     // Check duplicate review (one per phone per profile per 7 days)
-    if (data.phoneHash) {
+    if (resolvedPhoneHash) {
       const profileId = reviewTokenRecord?.profileId;
       if (profileId) {
         const existingReview = await this.repo.findByReviewerAndProfile(
-          data.phoneHash,
+          resolvedPhoneHash,
           profileId,
           7,
         );
@@ -121,7 +122,7 @@ export class ReviewService {
       profileId,
       reviewTokenId: reviewTokenRecord?.id ?? null,
       qualityPicks: data.qualities,
-      reviewerPhoneHash: data.phoneHash ?? '',
+      reviewerPhoneHash: resolvedPhoneHash,
       deviceFingerprintHash,
       locationLat: reviewTokenRecord?.gpsLatitude ?? null,
       locationLng: reviewTokenRecord?.gpsLongitude ?? null,
@@ -129,10 +130,11 @@ export class ReviewService {
       fraudScore,
     } as any);
 
-    // Mark token as used
+    // Mark token as used (attribute name, not column name — the model
+    // maps `isUsed` → column `is_used`).
     if (reviewTokenRecord) {
       await reviewTokenRecord.update({
-        is_used: true,
+        isUsed: true,
       });
     }
 

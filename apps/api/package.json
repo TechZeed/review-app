@@ -18,6 +18,9 @@
     "db:seed:status": "tsx --env-file=.env src/db/seed-cli.ts status",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run tests/integration",
+    "test:db:migrate": "tsx --env-file=../../.env.test src/db/cli.ts up",
+    "test:db:seed": "tsx --env-file=../../.env.test tests/integration/seed-cli.ts",
     "docs": "echo '\n  API docs at http://localhost:3000/api-docs\n'"
   },
   "dependencies": {
@@ -52,6 +55,7 @@
     "@types/qrcode": "^1.5.5",
     "@types/supertest": "^6.0.3",
     "@types/uuid": "^10.0.0",
+    "dotenv": "^17.4.2",
     "supertest": "^7.1.4",
     "tsx": "^4.21.0",
     "typescript": "^5.8.3",

@@ -9,6 +9,7 @@ export interface ReviewTokenAttributes {
   expiresAt: Date;
   isUsed: boolean;
   phoneVerified: boolean;
+  phoneHash: string | null;
   createdAt: Date;
 }
 
@@ -21,6 +22,7 @@ export class ReviewToken extends Model<ReviewTokenAttributes> implements ReviewT
   declare expiresAt: Date;
   declare isUsed: boolean;
   declare phoneVerified: boolean;
+  declare phoneHash: string | null;
   declare createdAt: Date;
 }
 
@@ -76,6 +78,11 @@ export function initReviewTokenModel(sequelize: Sequelize): void {
         allowNull: false,
         defaultValue: false,
         field: "phone_verified",
+      },
+      phoneHash: {
+        type: DataTypes.STRING(128),
+        allowNull: true,
+        field: "phone_hash",
       },
       createdAt: {
         type: DataTypes.DATE,

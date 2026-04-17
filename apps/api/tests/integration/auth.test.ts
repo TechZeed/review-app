@@ -1,221 +1,111 @@
 /**
- * Integration test — Auth Flow.
+ * Integration test — Email/password login flow.
  *
- * Exercises: register -> login -> GET /me -> logout
+ * Exercises POST /api/v1/auth/login against the real Express app
+ * with a Testcontainers Postgres seeded by ./seed.ts (via ./setup.ts).
  *
- * Uses supertest against the Express app.
- * Firebase Admin is mocked (see setup.ts).
+ * Regression coverage:
+ *   - JWT claim shape (must include role, tier, provider) for downstream RBAC.
+ *   - WRONG_PROVIDER vs INVALID_CREDENTIALS distinction
+ *     (auth.service.ts:200-219).
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import jwt from "jsonwebtoken";
-import {
-  createTestUser,
-  generateAuthToken,
-  mockFirebaseAuth,
-} from "../utils/factories.js";
+import type { Express } from "express";
+import { bootstrapTestStack } from "./setup.js";
+import type { SeededTestData } from "./seed.js";
 
-let app: any;
-let appAvailable = false;
-let authToken: string;
+let app: Express;
+let seeded: SeededTestData;
+let teardown: (() => Promise<void>) | undefined;
 
 beforeAll(async () => {
-  try {
-    const mod = await import("../../src/app.js");
-    app = mod.app ?? mod.default;
-    // Check if auth routes are mounted (not just health).
-    // If POST /api/v1/auth/register returns 404, routes are not yet implemented.
-    const st = (await import("supertest")).default;
-    const testRes = await st(app).post("/api/v1/auth/register").send({});
-    // 404 means routes not mounted; any other status means they exist
-    appAvailable = testRes.status !== 404;
-  } catch {
-    appAvailable = false;
-    console.warn(
-      "[integration/auth] Express app not fully operational — running specification-level tests only.",
-    );
+  const stack = await bootstrapTestStack();
+  app = stack.app;
+  seeded = stack.seeded as SeededTestData;
+  teardown = stack.teardown;
+}, 120_000);
+
+afterAll(async () => {
+  if (teardown) {
+    await teardown();
   }
 });
 
-describe("Auth Flow — Integration", () => {
-  // ──── Register ────
+describe("Auth — POST /api/v1/auth/login", () => {
+  it("logs in admin@test.local with valid password and returns a JWT with role=ADMIN", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: "admin@test.local", password: "Test_Admin_Pass_007" });
 
-  describe("POST /api/v1/auth/register", () => {
-    it("should register a new user and return a JWT", async () => {
-      const testUser = createTestUser();
+    expect(res.status).toBe(200);
+    const token: string = res.body?.accessToken ?? res.body?.data?.accessToken;
+    expect(token, "response should include a JWT in body.accessToken").toBeTruthy();
 
-      if (!appAvailable) {
-        // Specification level: verify token shape
-        authToken = generateAuthToken(testUser);
-        const decoded = jwt.verify(authToken, process.env.JWT_SECRET!) as jwt.JwtPayload;
-        expect(decoded.sub).toBe(testUser.id);
-        expect(decoded.email).toBe(testUser.email);
-        expect(decoded.role).toBe("INDIVIDUAL");
-        return;
-      }
-
-      await mockFirebaseAuth({
-        uid: testUser.firebaseUid,
-        email: testUser.email,
-      });
-
-      const res = await request(app)
-        .post("/api/v1/auth/register")
-        .send({
-          email: testUser.email,
-          displayName: testUser.displayName,
-          firebaseIdToken: "valid-firebase-token",
-        })
-        .expect(201);
-
-      expect(res.body.data.token).toBeDefined();
-      expect(res.body.data.user.email).toBe(testUser.email);
-      authToken = res.body.data.token;
-    });
-
-    it("should reject duplicate registration", async () => {
-      if (!appAvailable) {
-        // Specification: duplicate email -> 409
-        expect(true).toBe(true);
-        return;
-      }
-
-      const testUser = createTestUser();
-      await mockFirebaseAuth({
-        uid: testUser.firebaseUid,
-        email: testUser.email,
-      });
-
-      // First registration
-      await request(app)
-        .post("/api/v1/auth/register")
-        .send({
-          email: testUser.email,
-          displayName: testUser.displayName,
-          firebaseIdToken: "valid-firebase-token",
-        });
-
-      // Second registration with same email
-      await request(app)
-        .post("/api/v1/auth/register")
-        .send({
-          email: testUser.email,
-          displayName: testUser.displayName,
-          firebaseIdToken: "valid-firebase-token-2",
-        })
-        .expect(409);
-    });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
+    expect(decoded.role).toBe("ADMIN");
+    expect(decoded.email).toBe("admin@test.local");
+    expect(decoded.provider).toBe("internal");
+    expect(decoded.tier).toBeDefined();
+    expect(decoded.sub).toBeTruthy();
   });
 
-  // ──── Login ────
+  it("logs in individual@test.local and returns role=INDIVIDUAL with provider=internal", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: "individual@test.local", password: "Test_Individual_Pass_007" });
 
-  describe("POST /api/v1/auth/login", () => {
-    it("should login with valid Firebase token and return JWT", async () => {
-      const testUser = createTestUser();
+    expect(res.status).toBe(200);
+    const token: string = res.body?.accessToken ?? res.body?.data?.accessToken;
+    expect(token).toBeTruthy();
 
-      if (!appAvailable) {
-        authToken = generateAuthToken(testUser);
-        const decoded = jwt.verify(authToken, process.env.JWT_SECRET!) as jwt.JwtPayload;
-        expect(decoded.sub).toBe(testUser.id);
-        return;
-      }
-
-      await mockFirebaseAuth({
-        uid: testUser.firebaseUid,
-        email: testUser.email,
-      });
-
-      const res = await request(app)
-        .post("/api/v1/auth/login")
-        .send({ firebaseIdToken: "valid-firebase-token" })
-        .expect(200);
-
-      expect(res.body.data.token).toBeDefined();
-      authToken = res.body.data.token;
-    });
-
-    it("should reject invalid Firebase token with 401", async () => {
-      if (!appAvailable) {
-        expect(true).toBe(true);
-        return;
-      }
-
-      await request(app)
-        .post("/api/v1/auth/login")
-        .send({ firebaseIdToken: "invalid-token" })
-        .expect(401);
-    });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
+    expect(decoded.role).toBe("INDIVIDUAL");
+    expect(decoded.provider).toBe("internal");
+    expect(decoded.tier).toBeDefined();
   });
 
-  // ──── GET /me ────
+  it("logs in employer@test.local with role=EMPLOYER", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: "employer@test.local", password: "Test_Employer_Pass_007" });
 
-  describe("GET /api/v1/auth/me", () => {
-    it("should return current user info with valid token", async () => {
-      const testUser = createTestUser();
-      authToken = generateAuthToken(testUser);
-
-      if (!appAvailable) {
-        const decoded = jwt.verify(authToken, process.env.JWT_SECRET!) as jwt.JwtPayload;
-        expect(decoded.sub).toBe(testUser.id);
-        expect(decoded.email).toBe(testUser.email);
-        return;
-      }
-
-      const res = await request(app)
-        .get("/api/v1/auth/me")
-        .set("Authorization", `Bearer ${authToken}`)
-        .expect(200);
-
-      expect(res.body.data.email).toBe(testUser.email);
-    });
-
-    it("should reject request without auth token (401)", async () => {
-      if (!appAvailable) {
-        expect(true).toBe(true);
-        return;
-      }
-
-      await request(app).get("/api/v1/auth/me").expect(401);
-    });
-
-    it("should reject request with expired token (401)", async () => {
-      const expiredToken = jwt.sign(
-        {
-          sub: "user-id",
-          email: "user@test.com",
-          role: "INDIVIDUAL",
-          status: "active",
-          isApproved: true,
-        },
-        process.env.JWT_SECRET!,
-        { expiresIn: "-1s" },
-      );
-
-      if (!appAvailable) {
-        expect(() =>
-          jwt.verify(expiredToken, process.env.JWT_SECRET!),
-        ).toThrow(jwt.TokenExpiredError);
-        return;
-      }
-
-      await request(app)
-        .get("/api/v1/auth/me")
-        .set("Authorization", `Bearer ${expiredToken}`)
-        .expect(401);
-    });
+    expect(res.status).toBe(200);
+    const token: string = res.body?.accessToken ?? res.body?.data?.accessToken;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
+    expect(decoded.role).toBe("EMPLOYER");
   });
 
-  // ──── Logout (token invalidation is client-side for JWT) ────
+  it("logs in recruiter@test.local with role=RECRUITER", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: "recruiter@test.local", password: "Test_Recruiter_Pass_007" });
 
-  describe("logout", () => {
-    it("should be handled client-side (token discarded)", () => {
-      // JWT-based auth — logout is simply discarding the token on the client.
-      // No server endpoint needed. The token remains valid until expiry.
-      const testUser = createTestUser();
-      const token = generateAuthToken(testUser);
-      expect(token).toBeDefined();
-      // Client deletes token — subsequent requests without token get 401
-    });
+    expect(res.status).toBe(200);
+    const token: string = res.body?.accessToken ?? res.body?.data?.accessToken;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
+    expect(decoded.role).toBe("RECRUITER");
+  });
+
+  it("rejects wrong password with 401 INVALID_CREDENTIALS", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: "admin@test.local", password: "wrong-password-here" });
+
+    expect(res.status).toBe(401);
+    const code = res.body?.code ?? res.body?.error?.code ?? res.body?.error;
+    expect(String(code)).toContain("INVALID_CREDENTIALS");
+  });
+
+  it("rejects nonexistent email with 401 INVALID_CREDENTIALS (no email enumeration)", async () => {
+    const res = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: "nobody@test.local", password: "irrelevant_Pass_1" });
+
+    expect(res.status).toBe(401);
+    const code = res.body?.code ?? res.body?.error?.code ?? res.body?.error;
+    expect(String(code)).toContain("INVALID_CREDENTIALS");
   });
 });

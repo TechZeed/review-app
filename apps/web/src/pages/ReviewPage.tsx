@@ -27,19 +27,21 @@ const QUALITIES = [
 ];
 
 // Simple fingerprint from available browser data
-function getDeviceFingerprint(): string {
+async function getDeviceFingerprint(): Promise<string> {
   const parts = [
     navigator.userAgent,
     navigator.language,
     screen.width + "x" + screen.height,
     Intl.DateTimeFormat().resolvedOptions().timeZone,
   ];
-  let hash = 0;
   const str = parts.join("|");
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash).toString(36);
+  const buf = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(str),
+  );
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 // Shuffle array with a seed (session-based randomization)
@@ -119,7 +121,7 @@ export default function ReviewPage() {
       const scanRes = await fetch(`${API_URL}/api/v1/reviews/scan/${slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deviceFingerprint: getDeviceFingerprint() }),
+        body: JSON.stringify({ deviceFingerprint: await getDeviceFingerprint() }),
       });
       const scanData = await scanRes.json();
       if (!scanRes.ok) throw new Error(scanData.message || "Failed to start review");

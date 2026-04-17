@@ -1,7 +1,16 @@
 version: "3"
 
+# Each label carries its own dotenv scope at the include site.
+# Task 3 forbids `dotenv:` inside an included file, and a parent-level
+# dotenv would leak across labels (dev env into test, etc.).
+
 includes:
   local:
     taskfile: Taskfile.local.yml
+    dotenv: ["../../.env"]
   dev:
     taskfile: Taskfile.dev.yml
+    dotenv: ["../../.env.dev"]
+  test:
+    taskfile: Taskfile.test.yml
+    dotenv: ["../../.env.test"]

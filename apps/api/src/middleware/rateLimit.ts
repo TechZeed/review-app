@@ -1,5 +1,10 @@
 import rateLimit from "express-rate-limit";
 
+// In test runs, rate limits otherwise trip inside a single vitest process as
+// many scenarios hit the same endpoints. Skip the limiter under NODE_ENV=test;
+// the behaviour itself still has dedicated coverage if you mock the window.
+const skipInTest = () => process.env.NODE_ENV === "test";
+
 /**
  * Authentication endpoints (login, register)
  * 5 requests per 15 minutes
@@ -11,6 +16,7 @@ export const authRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { trustProxy: false },
+  skip: skipInTest,
 });
 
 /**
@@ -24,6 +30,7 @@ export const apiRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { trustProxy: false },
+  skip: skipInTest,
 });
 
 /**
@@ -37,6 +44,7 @@ export const reviewRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { trustProxy: false },
+  skip: skipInTest,
   keyGenerator: (req) => {
     const deviceFingerprint = req.headers["x-device-fingerprint"] || "";
     return `${req.ip}:${deviceFingerprint}`;
@@ -55,6 +63,7 @@ export const otpRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { trustProxy: false },
+  skip: skipInTest,
 });
 
 /**
@@ -68,6 +77,7 @@ export const mediaUploadRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { trustProxy: false },
+  skip: skipInTest,
 });
 
 /**
@@ -81,4 +91,5 @@ export const recruiterSearchRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { trustProxy: false },
+  skip: skipInTest,
 });

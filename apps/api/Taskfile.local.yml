@@ -42,7 +42,7 @@ tasks:
   # ─── Quality ─────────────────────────────────────────────────────────────────
 
   test:
-    desc: Run tests
+    desc: Run unit tests (integration suite lives in Taskfile.test.yml — use `task test:integration`)
     cmd: ./run.sh local test
 
   build:
