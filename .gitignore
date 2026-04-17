@@ -38,3 +38,4 @@ coverage/
 
 # Docker
 docker-compose.override.yml
+.env.test
