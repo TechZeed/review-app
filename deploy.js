@@ -97,29 +97,72 @@ function timestamp() {
   ].join('');
 }
 
+// Keys deploy.js understands. Used for the process.env overlay when
+// running in CI where .env.<env> is empty/absent and secrets come in
+// as job-level env vars (see .github/workflows/deploy.yml).
+const KNOWN_CONFIG_KEYS = [
+  'NODE_ENV',
+  'GCP_PROJECT_ID', 'GCP_REGION', 'CLOUDSQL_CONNECTION_NAME',
+  'POSTGRES_HOST', 'POSTGRES_PORT', 'POSTGRES_DB', 'POSTGRES_USER', 'POSTGRES_PASSWORD',
+  'JWT_SECRET', 'JWT_EXPIRATION_TIME_IN_MINUTES',
+  'FIREBASE_PROJECT_ID', 'FIREBASE_SERVICE_ACCOUNT_PATH',
+  'GCP_BUCKET_NAME', 'SIGNED_URL_EXPIRY_MINUTES',
+  'STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET',
+  'STRIPE_PRODUCT_PRO', 'STRIPE_PRODUCT_EMPLOYER', 'STRIPE_PRODUCT_RECRUITER',
+  'STRIPE_PRICE_PRO_MONTHLY', 'STRIPE_PRICE_PRO_ANNUAL',
+  'STRIPE_PRICE_EMPLOYER_SMALL', 'STRIPE_PRICE_EMPLOYER_MEDIUM', 'STRIPE_PRICE_EMPLOYER_LARGE',
+  'STRIPE_PRICE_RECRUITER_BASIC', 'STRIPE_PRICE_RECRUITER_PREMIUM',
+  'SMS_PROVIDER',
+  'APP_BASE_URL', 'API_BASE_URL', 'APP_URL', 'FRONTEND_URL', 'CORS_ORIGINS',
+  'REVIEW_TOKEN_EXPIRY_HOURS', 'REVIEW_COOLDOWN_DAYS',
+  'ENABLE_HTTP_LOGGING',
+  'EXPO_TOKEN',
+  'VITE_API_URL',
+  'VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET', 'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID', 'VITE_FIREBASE_MEASUREMENT_ID',
+];
+
 function loadEnvFile(env) {
   const filePath = path.join(__dirname, `.env.${env}`);
-  if (!fs.existsSync(filePath)) {
-    console.error(`Missing env file: ${filePath}`);
+  const result = {};
+
+  if (fs.existsSync(filePath)) {
+    const lines = fs.readFileSync(filePath, 'utf8').split('\n');
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) continue;
+      const eq = line.indexOf('=');
+      if (eq === -1) continue;
+      const key = line.slice(0, eq).trim();
+      let value = line.slice(eq + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      result[key] = value;
+    }
+  }
+
+  // Overlay process.env for known keys (CI path — secrets injected as
+  // job-level env vars). File values win only when process.env has no
+  // value for that key, so local runs and CI both work cleanly.
+  for (const key of KNOWN_CONFIG_KEYS) {
+    const v = process.env[key];
+    if (v !== undefined && v !== '') {
+      result[key] = v;
+    }
+  }
+
+  if (Object.keys(result).length === 0) {
+    console.error(
+      `No config found: ${filePath} missing and no KNOWN_CONFIG_KEYS present in process.env`,
+    );
     process.exit(1);
   }
-  const result = {};
-  const lines = fs.readFileSync(filePath, 'utf8').split('\n');
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const eq = line.indexOf('=');
-    if (eq === -1) continue;
-    const key = line.slice(0, eq).trim();
-    let value = line.slice(eq + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    result[key] = value;
-  }
+
   return result;
 }
 
