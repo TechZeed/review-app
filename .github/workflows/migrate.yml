@@ -39,12 +39,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    # All config from GitHub Secrets — nothing hardcoded. Mirrors the
+    # single-source-of-truth pattern used for deploy (see deploy.yml).
     env:
-      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      GCP_REGION: asia-southeast1
+      GCP_PROJECT_ID:           ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION:               ${{ secrets.GCP_REGION || 'asia-southeast1' }}
+      CLOUDSQL_CONNECTION_NAME: ${{ secrets.CLOUDSQL_CONNECTION_NAME }}
 
     steps:
       - uses: actions/checkout@v4
+
+      # Wipe any .env files that may have slipped in and create empty
+      # placeholders so fs.existsSync paths in the codebase don't trip.
+      - name: Remove all .env files
+        run: |
+          find . -name ".env*" -type f -print -delete
+          touch .env
+          touch .env.dev
 
       - uses: actions/setup-node@v4
         with:
@@ -71,19 +82,23 @@ jobs:
 
       - name: Start Cloud SQL Proxy
         run: |
-          ./cloud-sql-proxy ${{ secrets.CLOUDSQL_CONNECTION_NAME }} --port=5432 &
+          ./cloud-sql-proxy ${{ env.CLOUDSQL_CONNECTION_NAME }} --port=5432 &
           sleep 3
 
       - name: Run migration
         working-directory: apps/api
         env:
           NODE_ENV: production
+          # Proxy binding — always localhost:5432 since we just started
+          # the proxy in that shape above. Not operator-configurable.
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5432
-          POSTGRES_DB: dev_review_db
-          POSTGRES_USER: review_user
-          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          JWT_SECRET: placeholder-not-needed-for-migration
-          FIREBASE_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          GCP_BUCKET_NAME: humini-review-media-dev
+          # Everything else from secrets. JWT_SECRET is required by the
+          # zod env schema (env.ts) even though migrations don't use it.
+          POSTGRES_DB:         ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER:       ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD:   ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET:          ${{ secrets.JWT_SECRET }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          GCP_BUCKET_NAME:     ${{ secrets.GCP_BUCKET_NAME }}
         run: npx tsx src/db/cli.ts ${{ inputs.action }}

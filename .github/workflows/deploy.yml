@@ -34,9 +34,78 @@ jobs:
             exit 1
           fi
 
+  # Run migrations before the API goes live. api & all: migrate first;
+  # web/ui: skip (no schema changes). Uses the same proxy + env-from-
+  # secrets shape as migrate.yml so the two stay consistent.
+  migrate:
+    name: Migrate (pre-deploy)
+    needs: validate
+    if: inputs.service == 'api' || inputs.service == 'all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      GCP_PROJECT_ID:           ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION:               ${{ secrets.GCP_REGION || 'asia-southeast1' }}
+      CLOUDSQL_CONNECTION_NAME: ${{ secrets.CLOUDSQL_CONNECTION_NAME }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove all .env files
+        run: |
+          find . -name ".env*" -type f -print -delete
+          touch .env
+          touch .env.dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/api
+        run: npm ci
+
+      - name: Google Auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install Cloud SQL Proxy
+        run: |
+          curl -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.3/cloud-sql-proxy.linux.amd64
+          chmod +x cloud-sql-proxy
+
+      - name: Start Cloud SQL Proxy
+        run: |
+          ./cloud-sql-proxy ${{ env.CLOUDSQL_CONNECTION_NAME }} --port=5432 &
+          sleep 3
+
+      - name: Run migration up
+        working-directory: apps/api
+        env:
+          NODE_ENV: production
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB:         ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER:       ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD:   ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET:          ${{ secrets.JWT_SECRET }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          GCP_BUCKET_NAME:     ${{ secrets.GCP_BUCKET_NAME }}
+        run: npx tsx src/db/cli.ts up
+
   deploy:
     name: Deploy (${{ inputs.service }})
-    needs: validate
+    needs: [validate, migrate]
+    # Skip `needs: migrate` constraint for web/ui since the migrate job
+    # is conditional. Works because `always()` + explicit success check.
+    if: always() && needs.validate.result == 'success' && (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -46,7 +115,7 @@ jobs:
     env:
       # ── GCP ────────────────────────────────────────────────
       GCP_PROJECT_ID:                    ${{ secrets.GCP_PROJECT_ID }}
-      GCP_REGION:                        asia-southeast1
+      GCP_REGION:                        ${{ secrets.GCP_REGION || 'asia-southeast1' }}
       CLOUDSQL_CONNECTION_NAME:          ${{ secrets.CLOUDSQL_CONNECTION_NAME }}
       # ── Postgres (Cloud SQL via socket in Cloud Run) ──────
       POSTGRES_DB:                       ${{ secrets.POSTGRES_DB }}
@@ -54,11 +123,11 @@ jobs:
       POSTGRES_PASSWORD:                 ${{ secrets.POSTGRES_PASSWORD }}
       # ── Auth ──────────────────────────────────────────────
       JWT_SECRET:                        ${{ secrets.JWT_SECRET }}
-      JWT_EXPIRATION_TIME_IN_MINUTES:    ${{ secrets.JWT_EXPIRATION_TIME_IN_MINUTES || '60' }}
+      JWT_EXPIRATION_TIME_IN_MINUTES:    ${{ secrets.JWT_EXPIRATION_TIME_IN_MINUTES }}
       # ── Firebase / GCS ────────────────────────────────────
       FIREBASE_PROJECT_ID:               ${{ secrets.FIREBASE_PROJECT_ID }}
       GCP_BUCKET_NAME:                   ${{ secrets.GCP_BUCKET_NAME }}
-      SIGNED_URL_EXPIRY_MINUTES:         ${{ secrets.SIGNED_URL_EXPIRY_MINUTES || '60' }}
+      SIGNED_URL_EXPIRY_MINUTES:         ${{ secrets.SIGNED_URL_EXPIRY_MINUTES }}
       # ── Stripe (test mode on dev) ─────────────────────────
       STRIPE_SECRET_KEY:                 ${{ secrets.STRIPE_SECRET_KEY }}
       STRIPE_PUBLISHABLE_KEY:            ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
@@ -74,19 +143,19 @@ jobs:
       STRIPE_PRICE_RECRUITER_BASIC:      ${{ secrets.STRIPE_PRICE_RECRUITER_BASIC }}
       STRIPE_PRICE_RECRUITER_PREMIUM:    ${{ secrets.STRIPE_PRICE_RECRUITER_PREMIUM }}
       # ── SMS (mocked on dev) ───────────────────────────────
-      SMS_PROVIDER:                      ${{ secrets.SMS_PROVIDER || 'mock' }}
+      SMS_PROVIDER:                      ${{ secrets.SMS_PROVIDER }}
       # ── App URLs / CORS ───────────────────────────────────
-      APP_URL:                           ${{ secrets.APP_URL || 'https://review-api.teczeed.com' }}
-      APP_BASE_URL:                      ${{ secrets.APP_BASE_URL || 'https://review-api.teczeed.com' }}
-      API_BASE_URL:                      ${{ secrets.API_BASE_URL || 'https://review-api.teczeed.com' }}
-      FRONTEND_URL:                      ${{ secrets.FRONTEND_URL || 'https://review-scan.teczeed.com' }}
-      CORS_ORIGINS:                      ${{ secrets.CORS_ORIGINS || 'https://review-scan.teczeed.com,https://review-dashboard.teczeed.com,https://review-profile.teczeed.com' }}
+      APP_URL:                           ${{ secrets.APP_URL }}
+      APP_BASE_URL:                      ${{ secrets.APP_BASE_URL }}
+      API_BASE_URL:                      ${{ secrets.API_BASE_URL }}
+      FRONTEND_URL:                      ${{ secrets.FRONTEND_URL }}
+      CORS_ORIGINS:                      ${{ secrets.CORS_ORIGINS }}
       # ── Review policy ─────────────────────────────────────
-      REVIEW_TOKEN_EXPIRY_HOURS:         ${{ secrets.REVIEW_TOKEN_EXPIRY_HOURS || '48' }}
-      REVIEW_COOLDOWN_DAYS:              ${{ secrets.REVIEW_COOLDOWN_DAYS || '7' }}
-      ENABLE_HTTP_LOGGING:               ${{ secrets.ENABLE_HTTP_LOGGING || 'false' }}
+      REVIEW_TOKEN_EXPIRY_HOURS:         ${{ secrets.REVIEW_TOKEN_EXPIRY_HOURS }}
+      REVIEW_COOLDOWN_DAYS:              ${{ secrets.REVIEW_COOLDOWN_DAYS }}
+      ENABLE_HTTP_LOGGING:               ${{ secrets.ENABLE_HTTP_LOGGING }}
       # ── Vite build-time args (web/ui) ─────────────────────
-      VITE_API_URL:                      ${{ secrets.VITE_API_URL || 'https://review-api.teczeed.com' }}
+      VITE_API_URL:                      ${{ secrets.VITE_API_URL }}
       VITE_FIREBASE_API_KEY:             ${{ secrets.VITE_FIREBASE_API_KEY }}
       VITE_FIREBASE_AUTH_DOMAIN:         ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
       VITE_FIREBASE_PROJECT_ID:          ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
