@@ -144,6 +144,7 @@ export default function ReviewPage() {
         body: JSON.stringify({
           reviewToken: token || reviewToken,
           qualities: selectedQualities,
+          qualityDisplayOrder: shuffledQualities.map((q) => q.key),
           thumbsUp: true,
         }),
       });
