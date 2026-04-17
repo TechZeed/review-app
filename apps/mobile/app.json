@@ -24,7 +24,7 @@
       },
       "package": "sg.reviewapp.app",
       "edgeToEdgeEnabled": true,
-      "versionCode": 2
+      "versionCode": 3
     },
     "web": {
       "favicon": "./assets/favicon.png"

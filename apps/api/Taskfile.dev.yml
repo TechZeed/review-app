@@ -1,8 +1,12 @@
 version: "3"
 
+dotenv: ['../../.env.dev']
+
 vars:
-  CLOUDSQL_CONNECTION: humini-review:asia-southeast1:review-db-dev
+  CLOUDSQL_CONNECTION: "{{.CLOUDSQL_CONNECTION_NAME}}"
   PROXY_PORT: "6199"
+  REPO_ROOT:
+    sh: git rev-parse --show-toplevel
 
 tasks:
   # ─── Cloud SQL Proxy ─────────────────────────────────────────────────────────
@@ -85,22 +89,26 @@ tasks:
 
   logs:api:
     desc: View API logs in dev
-    cmd: gcloud run services logs read review-api-dev --region=asia-southeast1 --limit=50 --project=humini-review
+    cmd: gcloud run services logs read review-api-dev --region=$GCP_REGION --limit=50 --project=$GCP_PROJECT_ID
 
   logs:web:
     desc: View Web logs in dev
-    cmd: gcloud run services logs read review-web-dev --region=asia-southeast1 --limit=50 --project=humini-review
+    cmd: gcloud run services logs read review-web-dev --region=$GCP_REGION --limit=50 --project=$GCP_PROJECT_ID
 
   logs:ui:
     desc: View UI logs in dev
-    cmd: gcloud run services logs read review-ui-dev --region=asia-southeast1 --limit=50 --project=humini-review
+    cmd: gcloud run services logs read review-ui-dev --region=$GCP_REGION --limit=50 --project=$GCP_PROJECT_ID
+
+  logs:
+    desc: Stream live API logs to terminal + devlogs.log (tee)
+    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/dev/devlogs.ts {{.CLI_ARGS}}
 
   # ─── Status ──────────────────────────────────────────────────────────────────
 
   status:
     desc: Show all Cloud Run services status
-    cmd: gcloud run services list --region=asia-southeast1 --project=humini-review --format="table(SERVICE,URL,LAST_DEPLOYED_BY)"
+    cmd: gcloud run services list --region=$GCP_REGION --project=$GCP_PROJECT_ID --format="table(SERVICE,URL,LAST_DEPLOYED_BY)"
 
   health:
     desc: Check API health on dev
-    cmd: curl -s https://review-api.teczeed.com/health | python3 -m json.tool
+    cmd: curl -s $APP_BASE_URL/health | python3 -m json.tool
