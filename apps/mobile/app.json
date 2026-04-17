@@ -21,8 +21,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "sg.reviewapp.app",
+      "buildNumber": "1",
       "infoPlist": {
-        "LSApplicationQueriesSchemes": ["mailto", "sms", "tel"]
+        "LSApplicationQueriesSchemes": [
+          "mailto",
+          "sms",
+          "tel"
+        ]
       }
     },
     "android": {
@@ -32,13 +37,20 @@
       },
       "package": "sg.reviewapp.app",
       "edgeToEdgeEnabled": true,
-      "versionCode": 4,
+      "versionCode": 10,
       "intentFilters": [
         {
           "action": "VIEW",
           "autoVerify": false,
-          "data": [{ "scheme": "reviewapp" }],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "data": [
+            {
+              "scheme": "reviewapp"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },

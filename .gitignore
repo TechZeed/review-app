@@ -38,3 +38,7 @@ coverage/
 
 # Docker
 docker-compose.override.yml
+
+# Apple setup helper artifacts (local)
+infra/dev/.apple-browser-profile/
+apps/mobile/.apple-ids.json

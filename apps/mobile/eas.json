@@ -4,6 +4,7 @@
     "development": { "developmentClient": true, "distribution": "internal" },
     "preview": {
       "distribution": "internal",
+      "ios": { "simulator": true },
       "android": { "buildType": "apk" }
     },
     "production": { "autoIncrement": true }
@@ -14,6 +15,11 @@
         "serviceAccountKeyPath": "./google-service-account.json",
         "track": "internal",
         "releaseStatus": "draft"
+      },
+      "ios": {
+        "appleId": "io@deemwar.com",
+        "ascAppId": "6762469762",
+        "appleTeamId": "LQY3DPEDZ9"
       }
     }
   }
