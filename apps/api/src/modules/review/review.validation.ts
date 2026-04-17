@@ -6,8 +6,11 @@ export const slugParamSchema = z.object({
   slug: z.string().min(4).max(50),
 });
 
+// Spec 19 B1: deviceFingerprint is optional. Controller falls back to a
+// SHA-256 of (User-Agent + req.ip) when the client omits it, so mobile
+// and web clients both work without knowing the server's expectations.
 export const scanSchema = z.object({
-  deviceFingerprint: z.string().min(16, 'Device fingerprint is required').max(128),
+  deviceFingerprint: z.string().min(16).max(128).optional(),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
   userAgent: z.string().max(500).optional(),

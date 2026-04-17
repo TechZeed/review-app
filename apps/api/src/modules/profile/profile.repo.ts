@@ -9,12 +9,14 @@ export class ProfileRepo extends BaseRepo<Profile> {
   async findBySlug(slug: string): Promise<Profile | null> {
     return this.model.findOne({
       where: { slug },
+      include: [{ association: "user", required: false }],
     });
   }
 
   async findByUserId(userId: string): Promise<Profile | null> {
     return this.model.findOne({
       where: { userId },
+      include: [{ association: "user", required: false }],
     });
   }
 

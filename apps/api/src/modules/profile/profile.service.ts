@@ -165,22 +165,7 @@ export class ProfileService {
   }
 
   private toResponse(profile: any) {
-    return {
-      id: profile.id,
-      slug: profile.slug,
-      name: profile.headline,
-      industry: profile.industry,
-      bio: profile.bio,
-      visibility: profile.visibility,
-      qrCodeUrl: profile.qrCodeUrl,
-      profileUrl: `${env.FRONTEND_URL}/r/${profile.slug}`,
-      reviewCount: profile.totalReviews ?? 0,
-      createdAt: profile.createdAt ? new Date(profile.createdAt).toISOString() : undefined,
-      updatedAt: profile.updatedAt ? new Date(profile.updatedAt).toISOString() : undefined,
-    };
-  }
-
-  private toPublicResponse(profile: any) {
+    const displayName = profile.user?.displayName ?? profile.user?.getDataValue?.("displayName");
     const totalReviews = profile.totalReviews ?? 0;
     const expertiseCount = profile.expertiseCount ?? 0;
     const careCount = profile.careCount ?? 0;
@@ -193,7 +178,46 @@ export class ProfileService {
     return {
       id: profile.id,
       slug: profile.slug,
-      name: profile.headline,
+      // spec 19 B2: `name` is the person's display name; role title lives in `headline`.
+      name: displayName ?? profile.headline,
+      headline: profile.headline,
+      industry: profile.industry,
+      bio: profile.bio,
+      visibility: profile.visibility,
+      qrCodeUrl: profile.qrCodeUrl,
+      profileUrl: `${env.FRONTEND_URL}/r/${profile.slug}`,
+      reviewCount: totalReviews,
+      // spec 19 B4: include qualityBreakdown on /profiles/me so Home can
+      // render without a second fetch.
+      qualityBreakdown: {
+        expertise: pct(expertiseCount),
+        care: pct(careCount),
+        delivery: pct(deliveryCount),
+        initiative: pct(initiativeCount),
+        trust: pct(trustCount),
+      },
+      createdAt: profile.createdAt ? new Date(profile.createdAt).toISOString() : undefined,
+      updatedAt: profile.updatedAt ? new Date(profile.updatedAt).toISOString() : undefined,
+    };
+  }
+
+  private toPublicResponse(profile: any) {
+    const displayName = profile.user?.displayName ?? profile.user?.getDataValue?.("displayName");
+    const totalReviews = profile.totalReviews ?? 0;
+    const expertiseCount = profile.expertiseCount ?? 0;
+    const careCount = profile.careCount ?? 0;
+    const deliveryCount = profile.deliveryCount ?? 0;
+    const initiativeCount = profile.initiativeCount ?? 0;
+    const trustCount = profile.trustCount ?? 0;
+    const totalPicks = expertiseCount + careCount + deliveryCount + initiativeCount + trustCount;
+    const pct = (c: number) => (totalPicks > 0 ? Math.round((c / totalPicks) * 100) : 0);
+
+    return {
+      id: profile.id,
+      slug: profile.slug,
+      // spec 19 B2: `name` is the person's display name; role title in `headline`.
+      name: displayName ?? profile.headline,
+      headline: profile.headline,
       industry: profile.industry,
       bio: profile.bio,
       qualityBreakdown: {
