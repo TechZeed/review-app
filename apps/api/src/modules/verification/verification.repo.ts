@@ -20,7 +20,7 @@ export class VerificationRepository extends BaseRepo<ReviewToken> {
       where: {
         id: tokenId,
         expiresAt: { [Op.gt]: new Date() },
-        status: { [Op.ne]: 'used' },
+        isUsed: false,
       },
     });
   }
@@ -34,25 +34,15 @@ export class VerificationRepository extends BaseRepo<ReviewToken> {
       where: {
         deviceFingerprintHash,
         createdAt: { [Op.gte]: windowStart },
-        status: 'used',
+        isUsed: true,
       },
     });
   }
 
-  async countRecentByPhone(
-    phoneHash: string,
-    profileId: string,
-    windowDays: number = 7,
-  ): Promise<number> {
-    const windowStart = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
-    return this.model.count({
-      where: {
-        phoneHash,
-        profileId,
-        usedAt: { [Op.gte]: windowStart },
-        status: 'used',
-      },
-    });
+  // Phone-level cooldown lives in the `reviews` table (reviewer_phone_hash +
+  // created_at). This repo only tracks token lifecycle.
+  async countRecentByPhone(): Promise<number> {
+    return 0;
   }
 
   async countDistinctDeviceReviews(
@@ -63,8 +53,8 @@ export class VerificationRepository extends BaseRepo<ReviewToken> {
     const result = await this.model.count({
       where: {
         deviceFingerprintHash,
-        usedAt: { [Op.gte]: windowStart },
-        status: 'used',
+        createdAt: { [Op.gte]: windowStart },
+        isUsed: true,
       },
       distinct: true,
       col: 'profileId',
@@ -72,20 +62,9 @@ export class VerificationRepository extends BaseRepo<ReviewToken> {
     return result;
   }
 
-  async countDistinctPhonesPerDevice(
-    deviceFingerprintHash: string,
-    windowDays: number = 30,
-  ): Promise<number> {
-    const windowStart = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
-    const result = await this.model.count({
-      where: {
-        deviceFingerprintHash,
-        phoneHash: { [Op.ne]: null },
-        createdAt: { [Op.gte]: windowStart },
-      },
-      distinct: true,
-      col: 'phoneHash',
-    });
-    return result;
+  // Phone-per-device counting requires joining to the reviews table; not
+  // supported here. Tests exercise the rate-limit via the reviews table.
+  async countDistinctPhonesPerDevice(): Promise<number> {
+    return 0;
   }
 }

@@ -1,0 +1,46 @@
+version: "3"
+
+# Test-stack lifecycle. See docs/specs/20-integration-tests.md.
+#
+# Env loading: this file has NO `dotenv:` declarations. Each underlying
+# command loads the env it needs (tsx --env-file=.env.test, vitest setup,
+# docker compose reading the compose file). The Task layer is purely an
+# orchestrator so that dev and test tasks never leak env into each other.
+
+tasks:
+  # ─── Docker-compose lifecycle ───────────────────────────────────────────
+
+  db:up:
+    desc: Start test Postgres (docker-compose) and wait for healthy
+    cmd: docker compose -f docker-compose.test.yml up -d --wait
+
+  db:down:
+    desc: Stop and destroy test stack (volume removed — fresh state next run)
+    cmd: docker compose -f docker-compose.test.yml down -v --remove-orphans
+
+  # ─── Schema + seed ──────────────────────────────────────────────────────
+
+  db:migrate:
+    desc: Run migrations against the test DB
+    cmd: npm run test:db:migrate
+
+  db:seed:
+    desc: Seed deterministic fixtures into the test DB
+    cmd: npm run test:db:seed
+
+  db:reset:
+    desc: Destroy and recreate test stack (down + up + migrate + seed)
+    cmds:
+      - task: db:down
+      - task: db:up
+      - task: db:migrate
+      - task: db:seed
+
+  # ─── Runs ───────────────────────────────────────────────────────────────
+
+  integration:
+    desc: Full integration run — reset DB, run vitest, tear down on exit
+    cmds:
+      - task: db:reset
+      - defer: { task: db:down }
+      - npm run test:integration

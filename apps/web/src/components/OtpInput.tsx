@@ -8,11 +8,17 @@ interface OtpInputProps {
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 
+const COUNTRY_CODE = "+65";
+
+function toE164(raw: string): string {
+  const digits = raw.replace(/\D/g, "").replace(/^0+/, "");
+  return `${COUNTRY_CODE}${digits}`;
+}
+
 export default function OtpInput({ onVerified, onClose, reviewToken }: OtpInputProps) {
   const [phone, setPhone] = useState("");
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
-  const [otpId, setOtpId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -34,14 +40,17 @@ export default function OtpInput({ onVerified, onClose, reviewToken }: OtpInputP
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_URL}/api/v1/otp/send`, {
+      const res = await fetch(`${API_URL}/api/v1/verification/otp/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, countryCode: "+1" }),
+        body: JSON.stringify({
+          reviewToken,
+          phone: toE164(phone),
+          channel: "sms",
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to send OTP");
-      setOtpId(data.otpId);
+      if (!res.ok) throw new Error(data.message || data.error || "Failed to send OTP");
       setStep("otp");
       setResendCooldown(30);
     } catch (e: any) {
@@ -55,13 +64,17 @@ export default function OtpInput({ onVerified, onClose, reviewToken }: OtpInputP
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_URL}/api/v1/otp/verify`, {
+      const res = await fetch(`${API_URL}/api/v1/verification/otp/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ otpId, code }),
+        body: JSON.stringify({
+          reviewToken,
+          phone: toE164(phone),
+          otp: code,
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Invalid code");
+      if (!res.ok) throw new Error(data.message || data.error || "Invalid code");
       onVerified(data.token || reviewToken);
     } catch (e: any) {
       setError(e.message);
@@ -116,7 +129,7 @@ export default function OtpInput({ onVerified, onClose, reviewToken }: OtpInputP
             <label className="block text-sm text-gray-600">Phone number</label>
             <div className="flex gap-2">
               <span className="flex items-center px-3 bg-gray-100 rounded-lg text-sm text-gray-600 border border-gray-200">
-                +1
+                {COUNTRY_CODE}
               </span>
               <input
                 type="tel"

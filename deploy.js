@@ -3,17 +3,24 @@
 /**
  * Review App Deployment Script
  *
- * Usage: node deploy.js <service> <environment>
- *   service:     api | web | ui | all
+ * Usage:
+ *   node deploy.js <service> <environment>   # build + deploy (also syncs secrets)
+ *   node deploy.js secrets <environment>     # sync .env.<env> secrets to GCP Secret Manager only
+ *   node deploy.js all <environment>         # deploy api + web + ui
+ *
+ *   service:     api | web | ui | all | secrets
  *   environment: dev | staging | prod
  *
- * Builds, pushes, and deploys the specified service(s) to GCP Cloud Run.
+ * Source of truth: .env.<environment> at repo root. All values (env vars, build args,
+ * secret values) are read from there. The script never hardcodes config.
  */
 
 const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 // ---------------------------------------------------------------------------
-// Configuration
+// Fixed infra identifiers (not config — these name the infra itself)
 // ---------------------------------------------------------------------------
 
 const GCP_PROJECT = 'humini-review';
@@ -23,6 +30,46 @@ const CLOUDSQL_CONNECTION = 'humini-review:asia-southeast1:review-db-dev';
 
 const VALID_SERVICES = ['api', 'web', 'ui'];
 const VALID_ENVS = ['dev', 'staging', 'prod'];
+
+// ---------------------------------------------------------------------------
+// Env var classification
+// ---------------------------------------------------------------------------
+
+// Env var name in Cloud Run -> Secret Manager secret name.
+// These are read from .env.<env> and pushed to Secret Manager; Cloud Run
+// references them via --set-secrets.
+const SECRET_MAPPING = {
+  POSTGRES_PASSWORD: 'review-db-password',
+  JWT_SECRET: 'review-jwt-secret',
+  STRIPE_SECRET_KEY: 'review-stripe-secret',
+  STRIPE_WEBHOOK_SECRET: 'review-stripe-webhook-secret',
+};
+
+// Keys from .env.<env> that are local-dev only — never sent to Cloud Run.
+const LOCAL_ONLY_KEYS = new Set([
+  'POSTGRES_HOST',
+  'POSTGRES_PORT',
+  'FIREBASE_SERVICE_ACCOUNT_PATH',
+  'EXPO_TOKEN',
+  'PORT',
+]);
+
+// Vite build-arg keys used for web/ui docker builds.
+const VITE_BUILD_ARG_KEYS = [
+  'VITE_API_URL',
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID',
+  'VITE_FIREBASE_MEASUREMENT_ID',
+];
+
+// Forced overrides — always applied regardless of .env.<env> contents.
+const FORCED_ENV = {
+  NODE_ENV: 'production',
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -50,32 +97,124 @@ function timestamp() {
   ].join('');
 }
 
-// ---------------------------------------------------------------------------
-// Secret Manager references (for Cloud Run --set-secrets flag)
-// ---------------------------------------------------------------------------
-
-function secretRef(secretName) {
-  return `projects/${GCP_PROJECT}/secrets/${secretName}/versions/latest`;
+function loadEnvFile(env) {
+  const filePath = path.join(__dirname, `.env.${env}`);
+  if (!fs.existsSync(filePath)) {
+    console.error(`Missing env file: ${filePath}`);
+    process.exit(1);
+  }
+  const result = {};
+  const lines = fs.readFileSync(filePath, 'utf8').split('\n');
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    result[key] = value;
+  }
+  return result;
 }
 
-function buildApiSecrets() {
-  // Maps Cloud Run env var name -> GCP Secret Manager secret name
-  const mapping = {
-    POSTGRES_PASSWORD: 'review-db-password',
-    JWT_SECRET: 'review-jwt-secret',
-    STRIPE_SECRET_KEY: 'review-stripe-secret',
-    STRIPE_WEBHOOK_SECRET: 'review-stripe-webhook-secret',
-  };
-  return Object.entries(mapping)
+function requireKeys(envMap, keys, context) {
+  const missing = keys.filter((k) => !envMap[k] || envMap[k].length === 0);
+  if (missing.length) {
+    console.error(`Missing required keys in .env file (${context}): ${missing.join(', ')}`);
+    process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Secret Manager sync
+// ---------------------------------------------------------------------------
+
+function secretExists(secretName) {
+  try {
+    execSync(
+      `gcloud secrets describe ${secretName} --project=${GCP_PROJECT}`,
+      { stdio: 'ignore' }
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function currentSecretValue(secretName) {
+  try {
+    return execSync(
+      `gcloud secrets versions access latest --secret=${secretName} --project=${GCP_PROJECT}`,
+      { stdio: ['ignore', 'pipe', 'ignore'] }
+    ).toString();
+  } catch {
+    return null;
+  }
+}
+
+function upsertSecret(secretName, value) {
+  if (!secretExists(secretName)) {
+    console.log(`  [create] ${secretName}`);
+    execSync(
+      `gcloud secrets create ${secretName} --replication-policy=automatic --project=${GCP_PROJECT}`,
+      { stdio: 'inherit' }
+    );
+  }
+  const existing = currentSecretValue(secretName);
+  if (existing === value) {
+    console.log(`  [unchanged] ${secretName}`);
+    return;
+  }
+  console.log(`  [update] ${secretName}`);
+  execSync(
+    `gcloud secrets versions add ${secretName} --data-file=- --project=${GCP_PROJECT}`,
+    { input: value, stdio: ['pipe', 'inherit', 'inherit'] }
+  );
+}
+
+function syncSecrets(envMap) {
+  console.log(`\n>>> Sync secrets to GCP Secret Manager (project=${GCP_PROJECT})`);
+  requireKeys(envMap, Object.keys(SECRET_MAPPING), 'secrets');
+  for (const [envVar, secretName] of Object.entries(SECRET_MAPPING)) {
+    upsertSecret(secretName, envMap[envVar]);
+  }
+}
+
+function buildApiSecretsFlag() {
+  return Object.entries(SECRET_MAPPING)
     .map(([envVar, secret]) => `${envVar}=${secret}:latest`)
     .join(',');
 }
 
 // ---------------------------------------------------------------------------
-// Deploy functions
+// Build Cloud Run env var set from .env.<env>
 // ---------------------------------------------------------------------------
 
-function buildAndPush(service, env) {
+function buildCloudRunEnv(envMap) {
+  const secretKeys = new Set(Object.keys(SECRET_MAPPING));
+  const viteKeys = new Set(VITE_BUILD_ARG_KEYS);
+  const out = {};
+  for (const [k, v] of Object.entries(envMap)) {
+    if (secretKeys.has(k)) continue;      // injected via --set-secrets
+    if (LOCAL_ONLY_KEYS.has(k)) continue; // dev-machine only
+    if (viteKeys.has(k)) continue;        // baked into frontend bundle at build time
+    out[k] = v;
+  }
+  Object.assign(out, FORCED_ENV);
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Build + deploy
+// ---------------------------------------------------------------------------
+
+function buildAndPush(service, env, envMap) {
   const ts = timestamp();
   const tag = `${env}-${ts}`;
   const localImage = `review-${service}:${tag}`;
@@ -86,9 +225,14 @@ function buildAndPush(service, env) {
   console.log(`Image: ${remoteImage}`);
   console.log(`========================================`);
 
-  const buildArgs = (service === 'web' || service === 'ui')
-    ? `--build-arg VITE_API_URL=https://review-api.teczeed.com --build-arg VITE_FIREBASE_API_KEY=AIzaSyBAQ3fKCEiCn-z7VPG9jEzQ-XA9rCWBvhE --build-arg VITE_FIREBASE_AUTH_DOMAIN=humini-review.firebaseapp.com --build-arg VITE_FIREBASE_PROJECT_ID=humini-review`
-    : '';
+  let buildArgs = '';
+  if (service === 'web' || service === 'ui') {
+    const present = VITE_BUILD_ARG_KEYS.filter((k) => envMap[k]);
+    buildArgs = present
+      .map((k) => `--build-arg ${k}=${envMap[k]}`)
+      .join(' ');
+  }
+
   run(`docker build ${buildArgs} -t ${localImage} apps/${service}/`, `Build ${service}`);
   run(`docker tag ${localImage} ${remoteImage}`, `Tag ${service}`);
   run(`docker push ${remoteImage}`, `Push ${service}`);
@@ -96,33 +240,21 @@ function buildAndPush(service, env) {
   return remoteImage;
 }
 
-function deployApi(image, env) {
+function writeEnvVarsFile(envPairs) {
+  // YAML file — values are JSON-encoded for safe escaping of commas/quotes/etc.
+  const lines = Object.entries(envPairs).map(
+    ([k, v]) => `${k}: ${JSON.stringify(String(v))}`
+  );
+  const filePath = path.join(__dirname, `.deploy-env-vars.${process.pid}.yaml`);
+  fs.writeFileSync(filePath, lines.join('\n') + '\n');
+  return filePath;
+}
+
+function deployApi(image, env, envMap) {
   const serviceName = `review-api-${env}`;
-  const secrets = buildApiSecrets();
-
-  const envPairs = {
-    NODE_ENV: 'production',
-    GCP_PROJECT_ID: GCP_PROJECT,
-    CLOUDSQL_CONNECTION_NAME: CLOUDSQL_CONNECTION,
-    POSTGRES_DB: 'dev_review_db',
-    POSTGRES_USER: 'review_user',
-    FIREBASE_PROJECT_ID: GCP_PROJECT,
-    GCP_BUCKET_NAME: 'humini-review-media-dev',
-    JWT_EXPIRATION_TIME_IN_MINUTES: '60',
-    SMS_PROVIDER: 'mock',
-    REVIEW_TOKEN_EXPIRY_HOURS: '48',
-    REVIEW_COOLDOWN_DAYS: '7',
-    SIGNED_URL_EXPIRY_MINUTES: '60',
-    ENABLE_HTTP_LOGGING: 'false',
-    APP_URL: 'https://review-api.teczeed.com',
-    FRONTEND_URL: 'https://review-scan.teczeed.com',
-    CORS_ORIGINS: 'https://review-scan.teczeed.com,https://review-dashboard.teczeed.com,https://review-profile.teczeed.com',
-  };
-
-  // Build --set-env-vars with ^ delimiter (commas in values break default delimiter)
-  const envFlags = '--set-env-vars=^||^' + Object.entries(envPairs)
-    .map(([k, v]) => `${k}=${v}`)
-    .join('||');
+  const secrets = buildApiSecretsFlag();
+  const envPairs = buildCloudRunEnv(envMap);
+  const envVarsFile = writeEnvVarsFile(envPairs);
 
   const cmd = [
     'gcloud run deploy', serviceName,
@@ -131,7 +263,7 @@ function deployApi(image, env) {
     `--platform=managed`,
     `--allow-unauthenticated`,
     `--add-cloudsql-instances=${CLOUDSQL_CONNECTION}`,
-    envFlags,
+    `--env-vars-file=${envVarsFile}`,
     `--set-secrets="${secrets}"`,
     `--min-instances=0`,
     `--max-instances=2`,
@@ -143,16 +275,18 @@ function deployApi(image, env) {
     `--quiet`,
   ].join(' ');
 
-  run(cmd, `Deploy ${serviceName}`);
+  try {
+    run(cmd, `Deploy ${serviceName}`);
+  } finally {
+    try { fs.unlinkSync(envVarsFile); } catch {}
+  }
   console.log(`\n${serviceName} deployed successfully.`);
 }
 
 function deployFrontend(service, image, env) {
   const serviceName = `review-${service}-${env}`;
 
-  const envVars = [
-    'NODE_ENV=production',
-  ].join(',');
+  const envVars = ['NODE_ENV=production'].join(',');
 
   const cmd = [
     'gcloud run deploy', serviceName,
@@ -175,11 +309,10 @@ function deployFrontend(service, image, env) {
   console.log(`\n${serviceName} deployed successfully.`);
 }
 
-function deployService(service, env) {
-  const image = buildAndPush(service, env);
-
+function deployService(service, env, envMap) {
+  const image = buildAndPush(service, env, envMap);
   if (service === 'api') {
-    deployApi(image, env);
+    deployApi(image, env, envMap);
   } else {
     deployFrontend(service, image, env);
   }
@@ -194,7 +327,7 @@ function main() {
 
   if (args.length < 2) {
     console.error('Usage: node deploy.js <service> <environment>');
-    console.error('  service:     api | web | ui | all');
+    console.error('  service:     api | web | ui | all | secrets');
     console.error('  environment: dev | staging | prod');
     process.exit(1);
   }
@@ -206,30 +339,41 @@ function main() {
     process.exit(1);
   }
 
-  const services = serviceArg === 'all' ? VALID_SERVICES : [serviceArg];
+  const envMap = loadEnvFile(env);
 
+  // Secrets-only mode: sync and exit.
+  if (serviceArg === 'secrets') {
+    syncSecrets(envMap);
+    console.log('\nSecrets synced.');
+    return;
+  }
+
+  const services = serviceArg === 'all' ? VALID_SERVICES : [serviceArg];
   for (const svc of services) {
     if (!VALID_SERVICES.includes(svc)) {
-      console.error(`Invalid service: ${svc}. Must be one of: ${VALID_SERVICES.join(', ')}, all`);
+      console.error(`Invalid service: ${svc}. Must be one of: ${VALID_SERVICES.join(', ')}, all, secrets`);
       process.exit(1);
     }
   }
 
-  // Ensure Docker is authenticated to Artifact Registry
   run(
     `gcloud auth configure-docker ${GCP_REGION}-docker.pkg.dev --quiet`,
     'Configure Docker for Artifact Registry'
   );
 
-  // Ensure Artifact Registry repository exists
   run(
     `gcloud artifacts repositories describe review-apps --location=${GCP_REGION} --project=${GCP_PROJECT} 2>/dev/null || ` +
     `gcloud artifacts repositories create review-apps --repository-format=docker --location=${GCP_REGION} --project=${GCP_PROJECT}`,
     'Ensure Artifact Registry repository exists'
   );
 
+  // If api is being deployed, sync secrets first so Cloud Run can reference them.
+  if (services.includes('api')) {
+    syncSecrets(envMap);
+  }
+
   for (const svc of services) {
-    deployService(svc, env);
+    deployService(svc, env, envMap);
   }
 
   console.log('\n========================================');

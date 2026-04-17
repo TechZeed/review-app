@@ -1,0 +1,55 @@
+# Test stack — one docker-compose file spun up once per test run.
+# Spec: docs/specs/20-integration-tests.md
+#
+# Ports are in the 105xx test-band (spec 20). Nothing here should collide
+# with local dev (3000/5173), dev-proxy (6199), or prod.
+#
+# Lifecycle is owned by Taskfile.local.yml: test:db:up → test:db:migrate
+# → test:db:seed → test:integration → test:db:down. On destroy, the named
+# volume is removed (-v) so every run starts from a clean DB.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: review-test-postgres
+    ports:
+      - "10532:5432"
+    environment:
+      POSTGRES_DB: test_review_db
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+    volumes:
+      - review-test-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d test_review_db"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  # Enable with `docker compose --profile media up -d` once media upload
+  # tests stop mocking the GCS SDK and exercise a real S3-compatible
+  # endpoint. Keep commented-but-ready so the shape is obvious.
+  #
+  # minio:
+  #   image: minio/minio:latest
+  #   container_name: review-test-minio
+  #   profiles: ["media"]
+  #   ports:
+  #     - "10590:9000"   # S3 API
+  #     - "10591:9001"   # MinIO console
+  #   environment:
+  #     MINIO_ROOT_USER: test_minio_user
+  #     MINIO_ROOT_PASSWORD: test_minio_password
+  #   command: server /data --console-address ":9001"
+  #   volumes:
+  #     - review-test-minio-data:/data
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+  #     interval: 3s
+  #     timeout: 3s
+  #     retries: 20
+
+volumes:
+  review-test-postgres-data:
+  # review-test-minio-data:

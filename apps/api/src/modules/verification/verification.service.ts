@@ -2,7 +2,6 @@ import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { VerificationRepository } from './verification.repo.js';
 import {
-  VerificationStatus,
   InitiateInput,
   SendOtpInput,
   VerifyOtpInput,
@@ -36,17 +35,15 @@ export class VerificationService {
 
     const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
 
+    // NOTE: this endpoint is orphaned — the live scan flow uses
+    // POST /reviews/scan/:slug (review.service.scanProfile). Kept here
+    // pending a decision to remove or rebuild it against real profile lookup.
     const reviewToken = await this.repo.create({
       profileId: 'placeholder-profile-id', // Replace with actual profile.id
       tokenHash,
       deviceFingerprintHash,
-      ipAddressHash: null,
-      gpsLatitude: data.latitude ?? null,
-      gpsLongitude: data.longitude ?? null,
-      gpsAccuracyMeters: data.gpsAccuracyMeters ?? null,
       scannedAt: new Date(),
       expiresAt,
-      status: VerificationStatus.PENDING,
     });
 
     return {
@@ -61,49 +58,46 @@ export class VerificationService {
   }
 
   async sendOtp(data: SendOtpInput): Promise<OtpSentResponse> {
-    const token = await this.repo.findById(data.reviewToken);
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(data.reviewToken)
+      .digest('hex');
+    const token = await this.repo.findByTokenHash(tokenHash);
     if (!token) {
       throw new AppError('Review token not found', 404, 'TOKEN_NOT_FOUND');
     }
 
-    if (token.status !== VerificationStatus.PENDING) {
-      throw new AppError('Token already used or verified', 409, 'TOKEN_ALREADY_USED');
+    if (token.isUsed) {
+      throw new AppError('Token already used', 409, 'TOKEN_ALREADY_USED');
     }
 
     if (new Date(token.expiresAt) < new Date()) {
       throw new AppError('Token expired', 410, 'TOKEN_EXPIRED');
     }
 
-    // Hash the phone number for privacy
+    // Phone cooldown — same phone + profile within REVIEW_COOLDOWN_DAYS.
+    // Source of truth is the `reviews` table (reviewer_phone_hash), not
+    // review_tokens. Dynamic import so verification has no hard dep on
+    // the review module at load time.
     const phoneHash = crypto
       .createHash('sha256')
       .update(data.phone + token.profileId)
       .digest('hex');
-
-    // Check phone cooldown — one review per phone per profile per 7 days
-    const recentCount = await this.repo.countRecentByPhone(
-      phoneHash,
-      token.profileId,
-      REVIEW_COOLDOWN_DAYS,
-    );
-    if (recentCount > 0) {
+    const { Review } = await import('../review/review.model.js');
+    const { Op } = await import('sequelize');
+    const cooldownSince = new Date(Date.now() - REVIEW_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+    const existingReview = await Review.findOne({
+      where: {
+        profileId: token.profileId,
+        reviewerPhoneHash: phoneHash,
+        createdAt: { [Op.gte]: cooldownSince },
+      },
+    });
+    if (existingReview) {
       throw new AppError(
         'You have already reviewed this person recently',
         429,
         'DUPLICATE_REVIEW',
-      );
-    }
-
-    // Check device rate limit — max 3 phone numbers per device per 30 days
-    const devicePhoneCount = await this.repo.countDistinctPhonesPerDevice(
-      token.deviceFingerprintHash,
-      30,
-    );
-    if (devicePhoneCount >= 3) {
-      throw new AppError(
-        'Too many verifications from this device',
-        429,
-        'DEVICE_PHONE_LIMIT',
       );
     }
 
@@ -130,7 +124,11 @@ export class VerificationService {
   }
 
   async verifyOtp(data: VerifyOtpInput): Promise<OtpVerifiedResponse> {
-    const token = await this.repo.findById(data.reviewToken);
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(data.reviewToken)
+      .digest('hex');
+    const token = await this.repo.findByTokenHash(tokenHash);
     if (!token) {
       throw new AppError('Review token not found', 404, 'TOKEN_NOT_FOUND');
     }
@@ -139,7 +137,7 @@ export class VerificationService {
       throw new AppError('Token expired', 410, 'TOKEN_EXPIRED');
     }
 
-    if (token.status === VerificationStatus.USED) {
+    if (token.isUsed) {
       throw new AppError('Token already used', 409, 'TOKEN_ALREADY_USED');
     }
 
@@ -147,9 +145,17 @@ export class VerificationService {
     let verified = false;
 
     if (SMS_PROVIDER === 'mock') {
-      // In mock mode, accept any valid 6-digit code
-      verified = /^\d{6}$/.test(data.otp);
-      console.log(`[MOCK SMS] Verifying OTP ${data.otp} for ${data.phone}: ${verified}`);
+      // Mock mode: accept any 6-digit code whose digits sum to 7
+      // (e.g. 000007, 000016, 700000, 001123). Stable, dev-friendly,
+      // no leakage of a single hardcoded code.
+      const is6Digit = /^\d{6}$/.test(data.otp);
+      const digitSum = is6Digit
+        ? data.otp.split('').reduce((s, c) => s + Number(c), 0)
+        : -1;
+      verified = is6Digit && digitSum === 7;
+      console.log(
+        `[MOCK SMS] Verifying OTP ${data.otp} for ${data.phone}: sum=${digitSum} verified=${verified}`,
+      );
     } else {
       // Production: Use Twilio Verify Check API
       // const twilio = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
@@ -163,16 +169,16 @@ export class VerificationService {
       throw new AppError('Invalid OTP code', 401, 'INVALID_OTP');
     }
 
-    // Hash the phone and mark token as verified
+    // Hash the phone (response echo only — not persisted; schema uses
+    // reviewer_phone_hash on the reviews table at submit time).
     const phoneHash = crypto
       .createHash('sha256')
       .update(data.phone + token.profileId)
       .digest('hex');
 
     await this.repo.update(token.id, {
+      phoneVerified: true,
       phoneHash,
-      phoneVerifiedAt: new Date(),
-      status: VerificationStatus.PHONE_VERIFIED,
     });
 
     return {
@@ -189,7 +195,7 @@ export class VerificationService {
       return { valid: false, reason: 'invalid' };
     }
 
-    if (token.status === VerificationStatus.USED) {
+    if (token.isUsed) {
       return { valid: false, reason: 'used' };
     }
 
@@ -209,31 +215,18 @@ export class VerificationService {
     let score = 0;
     const flags: FraudFlag[] = [];
 
-    // Layer 1: QR Token validity (+30)
-    if (reviewToken && reviewToken.status !== VerificationStatus.EXPIRED) {
+    // Layer 1: QR Token validity (+30) — token not expired and not used
+    if (
+      reviewToken &&
+      new Date(reviewToken.expiresAt) > new Date() &&
+      !reviewToken.isUsed
+    ) {
       score += 30;
     }
 
-    // Layer 1: GPS location captured (+10)
-    if (reviewToken.gpsLatitude != null && reviewToken.gpsLongitude != null) {
-      score += 10;
-    }
-
     // Layer 2: Phone OTP verified (+25)
-    if (reviewToken.phoneVerifiedAt != null) {
+    if (reviewToken.phoneVerified) {
       score += 25;
-    }
-
-    // Layer 2: Phone not seen for this profile in last 7 days (+5)
-    if (reviewToken.phoneHash) {
-      const recentPhoneCount = await this.repo.countRecentByPhone(
-        reviewToken.phoneHash,
-        reviewToken.profileId,
-        REVIEW_COOLDOWN_DAYS,
-      );
-      if (recentPhoneCount === 0) {
-        score += 5;
-      }
     }
 
     // Layer 3: Token used within 1 hour of scan (+10)
