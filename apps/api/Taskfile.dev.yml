@@ -65,8 +65,13 @@ tasks:
 
   # ─── Mobile ──────────────────────────────────────────────────────────────────
 
+  mobile:config:
+    desc: Render apps/mobile/eas.json from template using .env.dev values
+    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/dev/apply-eas-config.ts
+
   deploy:mobile:
-    desc: Build locally and submit to Play Store internal track
+    desc: Build Android locally and submit to Play Store internal track
+    deps: [mobile:config]
     dir: "{{.ROOT_DIR}}/apps/mobile"
     cmds:
       - eas build --platform android --profile production --local --output ./build.aab --non-interactive
@@ -75,15 +80,34 @@ tasks:
 
   deploy:mobile:preview:
     desc: Build preview APK locally
+    deps: [mobile:config]
     dir: "{{.ROOT_DIR}}/apps/mobile"
     cmd: eas build --platform android --profile preview --local --output ./preview.apk --non-interactive
 
   deploy:mobile:cloud:
-    desc: Build on EAS cloud and submit (for production releases)
+    desc: Build Android on EAS cloud and submit (last-resort when local fails)
+    deps: [mobile:config]
     dir: "{{.ROOT_DIR}}/apps/mobile"
     cmds:
       - eas build --platform android --profile production --non-interactive
       - eas submit --platform android --latest --non-interactive
+
+  deploy:mobile:ios:
+    desc: Build iOS locally and submit to TestFlight (needs Xcode + Apple auth)
+    deps: [mobile:config]
+    dir: "{{.ROOT_DIR}}/apps/mobile"
+    cmds:
+      - eas build --platform ios --profile production --local --output ./build.ipa --non-interactive
+      - eas submit --platform ios --path ./build.ipa --non-interactive
+      - rm -f ./build.ipa
+
+  deploy:mobile:ios:cloud:
+    desc: Build iOS on EAS cloud and submit to TestFlight (fallback)
+    deps: [mobile:config]
+    dir: "{{.ROOT_DIR}}/apps/mobile"
+    cmds:
+      - eas build --platform ios --profile production --non-interactive
+      - eas submit --platform ios --latest --non-interactive
 
   # ─── Logs ────────────────────────────────────────────────────────────────────
 
