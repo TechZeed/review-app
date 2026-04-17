@@ -1,17 +1,33 @@
+import { useRef } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import type { Profile } from '../lib/api';
+import ShareQRButton from './ShareQRButton';
 
 interface ProfileCardProps {
   profile: Profile;
   showQR?: boolean;
 }
 
+function buildPublicUrl(slug: string): string {
+  const base =
+    import.meta.env.VITE_PUBLIC_REVIEW_URL ||
+    (typeof window !== 'undefined' ? window.location.origin : '');
+  // Strip trailing slash on base so we don't get // in the middle.
+  const trimmed = base.replace(/\/+$/, '');
+  return `${trimmed}/r/${slug}`;
+}
+
 export default function ProfileCard({ profile, showQR = false }: ProfileCardProps) {
+  const qrSvgRef = useRef<SVGSVGElement | null>(null);
+
   const initials = profile.name
     .split(' ')
     .map((n) => n[0])
     .join('')
     .toUpperCase()
     .slice(0, 2);
+
+  const publicUrl = buildPublicUrl(profile.slug);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -63,14 +79,28 @@ export default function ProfileCard({ profile, showQR = false }: ProfileCardProp
 
       {showQR && (
         <div className="mt-6 flex flex-col items-center">
-          <div className="w-48 h-48 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-sm">
-            QR Code
-            <br />
-            (scan to review)
+          <div
+            data-testid="reviewee-qr"
+            data-qr-url={publicUrl}
+            className="bg-white p-2 rounded-lg border border-gray-200 w-60 h-60 sm:w-[180px] sm:h-[180px] flex items-center justify-center"
+          >
+            <QRCodeSVG
+              ref={qrSvgRef}
+              value={publicUrl}
+              size={512}
+              level="M"
+              marginSize={0}
+              className="w-full h-full"
+            />
           </div>
-          <p className="mt-2 text-xs text-gray-500">
-            Share this QR code with customers
+          <p className="text-xs font-mono text-slate-500 select-all break-all mt-2">
+            {publicUrl}
           </p>
+          <ShareQRButton
+            svgRef={qrSvgRef}
+            publicUrl={publicUrl}
+            slug={profile.slug}
+          />
         </div>
       )}
     </div>

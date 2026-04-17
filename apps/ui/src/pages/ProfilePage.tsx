@@ -66,7 +66,7 @@ export default function ProfilePage() {
   const refCount = profile.verifiable_references;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50" data-testid="profile-root">
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -78,7 +78,7 @@ export default function ProfilePage() {
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         {/* Profile hero */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <ProfileCard profile={profile} />
+          <ProfileCard profile={profile} showQR />
 
           <div className="space-y-4">
             <QualityHeatMap qualities={qualityBars} />
