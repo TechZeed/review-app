@@ -102,12 +102,30 @@ Endpoints mobile will need that we have **not yet confirmed exist** on the API. 
 | Google sign-in exchange | `POST /api/v1/auth/exchange-token` | ✅ (used by ui) | |
 | My profile | `GET /api/v1/profiles/me` | ✅ (used by ui) | |
 | My received reviews | `GET /api/v1/reviews/profile/:profileId?page=1&limit=20` | ✅ (used by ui) | |
-| **Search people** (name / industry) | `GET /api/v1/profiles/search?q=...` | ❓ unverified | needed for mobile search screen |
-| **Grant reference access** (verifiable references opt-in) | `POST /api/v1/references/grant` or similar | ❓ unverified | d6 decision — no UI exists yet |
-| **List people I've reviewed** (customer-side history) | ❓ | ❓ | needed if we show "your reviews" on mobile |
+| **Search people** (name / industry) | `GET /api/v1/profiles/search?q=...` | ❌ not mounted (404) — probed 2026-04-17 via `mobile-contract.test.ts` | needed for mobile search screen |
+| **Grant reference access** (verifiable references opt-in) | `POST /api/v1/references/grant` or similar | ❌ not mounted (404) — probed 2026-04-17 | d6 decision — no UI exists yet |
+| **List people I've reviewed** (customer-side history) | ❓ | ❓ | needed if we show "your reviews" on mobile; no assumed path yet |
 
 ---
 
 ## Companion scope note
 
 This spec is **bug-log only**. API fixes happen in a dedicated API sprint after the mobile UI is usable end-to-end against real endpoints (with workarounds where needed). Do not open PRs that mix mobile work with API fixes from this list.
+
+---
+
+## Regression coverage
+
+`apps/api/tests/integration/mobile-contract.test.ts` holds regression
+guards for every entry here. Today's assertions document the *current
+buggy* behaviour with `it(...)`, and the *target* behaviour is pinned
+with `it.todo(...)`. When the API sprint fixes an entry, flip the
+matching pair: replace the current-state `it(...)` with the target
+assertion and delete the `.todo`. `task test:integration` will fail
+loudly if someone regresses after a fix.
+
+Status snapshot after a run on 2026-04-17:
+- B1 open (server still requires client fingerprint; web sends it)
+- B2 open (`name` still contains headline)
+- B3 open (server expects `firebaseToken`; mobile workaround shipping)
+- B4 open (public route has `qualityBreakdown`; `/me` doesn't)
