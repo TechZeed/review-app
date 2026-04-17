@@ -42,6 +42,34 @@
 
 ---
 
+### B3 — `POST /api/v1/auth/exchange-token` expects `firebaseToken`, spec 21 says `firebaseIdToken`
+
+- **Status:** workaround
+- **Discovered:** 2026-04-17 via `apps/mobile` auth wiring
+- **Repro:** Post to `/api/v1/auth/exchange-token` with `{ firebaseIdToken: "..." }` — fails validation.
+- **Request:** `POST /api/v1/auth/exchange-token` body `{ firebaseIdToken: string }`
+- **Current:** 400 `Validation failed: firebaseToken is required`. Source of truth is `apps/api/src/modules/auth/auth.validation.ts#exchangeFirebaseTokenSchema` which expects the field name `firebaseToken`.
+- **Expected:** Either the API should also accept `firebaseIdToken` (alias), or spec 21 should be updated. The name `firebaseIdToken` is more precise (it is the Firebase ID token, not an OAuth access token) so renaming the API field to `firebaseIdToken` is the cleaner fix.
+- **Impact on mobile:** Mobile cannot exchange tokens if it follows spec 21 literally.
+- **Workaround for mobile:** `apps/mobile/lib/api.ts#exchangeToken` sends the body as `{ firebaseToken }` to match what the API expects today. Field renamed on client only; Firebase ID token semantics unchanged.
+- **Fix location:** `apps/api/src/modules/auth/auth.validation.ts` (rename schema key to `firebaseIdToken`) and `apps/api/src/modules/auth/auth.controller.ts#exchangeToken` (rename `req.body.firebaseToken`).
+
+---
+
+### B4 — `GET /api/v1/profiles/me` does not return `qualityBreakdown`
+
+- **Status:** workaround
+- **Discovered:** 2026-04-17 via `apps/mobile` Home screen wiring
+- **Repro:** Authenticated `curl /api/v1/profiles/me`.
+- **Request:** `GET /api/v1/profiles/me` with Bearer JWT.
+- **Current:** `ProfileService.toResponse` returns `{ id, slug, name, industry, bio, visibility, qrCodeUrl, profileUrl, reviewCount, ... }`. **No `qualityBreakdown`**. Only `toPublicResponse` (used by `/profiles/:slug`) exposes it.
+- **Expected:** `/profiles/me` should also include `qualityBreakdown` (or at least a link to `/profiles/me/stats` which already computes it). Spec 21's assumed shape for `/me` includes `qualityBreakdown`.
+- **Impact on mobile:** Mobile Home "top 2 qualities as chips" cannot be derived directly from `/me`.
+- **Workaround for mobile:** Home screen calls `/profiles/me` for identity, and after it loads also calls `/profiles/${slug}` (public route) to get `qualityBreakdown`. Two round-trips instead of one. Cached by React Query.
+- **Fix location:** `apps/api/src/modules/profile/profile.service.ts#toResponse` — include the same `qualityBreakdown` block computed in `toPublicResponse` / `getQualityStats`.
+
+---
+
 ## Template for new entries
 
 ```markdown

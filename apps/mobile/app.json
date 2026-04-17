@@ -8,14 +8,22 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "reviewapp",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#4f46e5"
     },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "sg.reviewapp.app"
+      "bundleIdentifier": "sg.reviewapp.app",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": ["mailto", "sms", "tel"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -24,7 +32,15 @@
       },
       "package": "sg.reviewapp.app",
       "edgeToEdgeEnabled": true,
-      "versionCode": 3
+      "versionCode": 4,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": false,
+          "data": [{ "scheme": "reviewapp" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -33,6 +49,18 @@
       "apiUrl": "https://review-api.teczeed.com",
       "webUrl": "https://review-scan.teczeed.com",
       "dashboardUrl": "https://review-dashboard.teczeed.com",
+      "firebase": {
+        "apiKey": "AIzaSyBAQ3fKCEiCn-z7VPG9jEzQ-XA9rCWBvhE",
+        "authDomain": "humini-review.firebaseapp.com",
+        "projectId": "humini-review",
+        "messagingSenderId": "1049089489429",
+        "appId": "1:1049089489429:web:5f0ab182785d1cf3f22c1c"
+      },
+      "googleOAuth": {
+        "webClientId": "TODO — copy from Firebase → Project settings → SDK setup (Web)",
+        "iosClientId": "TODO — Firebase → iOS app (add iOS app first)",
+        "androidClientId": "TODO — Firebase → Android app (add Android app first)"
+      },
       "eas": {
         "projectId": "0a16994f-a788-4021-bd41-ad1afed8da3f"
       }
