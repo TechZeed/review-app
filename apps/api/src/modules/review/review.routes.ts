@@ -32,7 +32,13 @@ reviewRouter.post(
   controller.submit
 );
 
-// IMPORTANT: /me route must be registered BEFORE /profile/:profileId
+// IMPORTANT: /me and /my-submissions routes must be registered BEFORE /profile/:profileId
+
+// Public: reviews the current device has submitted (customer history, spec 19).
+reviewRouter.get(
+  '/my-submissions',
+  controller.mySubmissions
+);
 
 // Protected: Get reviews received by the authenticated individual
 reviewRouter.get(

@@ -37,75 +37,80 @@ describe("Mobile/web API contract — spec 19 regression watch", () => {
   describe("B1: POST /api/v1/reviews/scan/:slug", () => {
     const slug = () => seeded.profiles.primary.slug;
 
-    it("rejects request with no deviceFingerprint field", async () => {
+    it("accepts client-supplied deviceFingerprint (16–128 char)", async () => {
       const res = await request(app)
         .post(`/api/v1/reviews/scan/${slug()}`)
-        .send({ qualityIds: [], thumbsUp: true });
-      expect(res.status).toBe(400);
-      expect(JSON.stringify(res.body)).toMatch(/deviceFingerprint/);
+        .send({ deviceFingerprint: "a".repeat(32) });
+      expect(res.status).toBe(201);
+      expect(res.body.reviewToken).toMatch(/^[0-9a-f-]{36}$/);
     });
 
-    it("rejects empty-string deviceFingerprint", async () => {
+    it("derives deviceFingerprint from UA + IP when the client omits it (spec 19 B1)", async () => {
       const res = await request(app)
         .post(`/api/v1/reviews/scan/${slug()}`)
-        .send({ deviceFingerprint: "" });
-      expect(res.status).toBe(400);
+        .set("User-Agent", "b1-fallback-test")
+        .send({});
+      expect(res.status).toBe(201);
+      expect(res.body.reviewToken).toMatch(/^[0-9a-f-]{36}$/);
     });
 
-    it.todo(
-      "optionally derives deviceFingerprint from UA + IP when client omits it (spec 19 B1 option a)",
-    );
+    it("rejects fingerprint shorter than the 16-char minimum", async () => {
+      const res = await request(app)
+        .post(`/api/v1/reviews/scan/${slug()}`)
+        .send({ deviceFingerprint: "abc" });
+      expect(res.status).toBe(400);
+    });
   });
 
   // ─── B2: /profiles/:slug returns headline as name ────────────────────
   // Current: `name` contains the role_title/headline, not the person's
   // actual full name. No separate `headline` field exposed.
   describe("B2: GET /api/v1/profiles/:slug", () => {
-    it("documents current buggy shape: body has a string `name` and no separate `headline`", async () => {
+    it("returns the user's display name in `name` and the role title in `headline` (spec 19 B2)", async () => {
       const res = await request(app).get(
         `/api/v1/profiles/${seeded.profiles.primary.slug}`,
       );
       expect(res.status).toBe(200);
-      expect(typeof res.body.name).toBe("string");
-      // When B2 is fixed, `headline` should be present. Today it isn't.
-      expect(res.body.headline).toBeUndefined();
+      // `name` is a person name — matches the seeded user's display name.
+      expect(res.body.name).toBe("Test Individual");
+      // `headline` is the separate role title field.
+      expect(typeof res.body.headline).toBe("string");
     });
-
-    it.todo(
-      "returns the user's display name in `name` and the role title in `headline` (spec 19 B2)",
-    );
   });
 
   // ─── B3: /auth/exchange-token naming mismatch ────────────────────────
   // Server expects `firebaseToken`; spec 21 + mobile clients use
   // `firebaseIdToken`. Mobile workaround renames on the wire.
   describe("B3: POST /api/v1/auth/exchange-token", () => {
-    it("rejects firebaseIdToken field — validator still requires firebaseToken", async () => {
+    // Spec 19 B3: server now accepts either field name. Downstream
+    // firebase-admin rejects the fake token either way, so we assert
+    // that validation PASSED (no VALIDATION_ERROR about missing field).
+    const isNotValidationMissingField = (body: any) => {
+      const s = JSON.stringify(body);
+      return !/"firebase(Id)?Token".*(?:Required|required)/i.test(s);
+    };
+
+    it("accepts firebaseIdToken field name (spec 19 B3)", async () => {
       const res = await request(app)
         .post("/api/v1/auth/exchange-token")
-        .send({ firebaseIdToken: "anything" });
-      expect(res.status).toBe(400);
-      expect(JSON.stringify(res.body)).toMatch(/firebaseToken/);
+        .send({ firebaseIdToken: "not-a-real-firebase-id-token" });
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(isNotValidationMissingField(res.body)).toBe(true);
     });
 
-    it("accepts firebaseToken field name (passes schema validation)", async () => {
+    it("accepts firebaseToken field name (legacy alias)", async () => {
       const res = await request(app)
         .post("/api/v1/auth/exchange-token")
         .send({ firebaseToken: "not-a-real-firebase-id-token" });
-      // Body passes zod; downstream firebase-admin.verifyIdToken rejects.
-      // In the test env FIREBASE_PROJECT_ID is a stub so verification may
-      // throw internally → 500. Any non-2xx proves the field name was
-      // accepted by the validator (if it weren't, we'd get VALIDATION_ERROR 400
-      // with `firebaseToken` in the error message).
       expect(res.status).toBeGreaterThanOrEqual(400);
-      if (res.status === 400) {
-        expect(JSON.stringify(res.body)).not.toMatch(/"firebaseToken".*Required/);
-      }
+      expect(isNotValidationMissingField(res.body)).toBe(true);
     });
 
-    it.todo(
-      "renames API field to firebaseIdToken (or accepts both) so spec 21 + mobile client match (spec 19 B3)",
-    );
+    it("rejects body with neither firebaseIdToken nor firebaseToken", async () => {
+      const res = await request(app).post("/api/v1/auth/exchange-token").send({});
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(res.body)).toMatch(/firebase/i);
+    });
   });
 
   // ─── B4: /profiles/me missing qualityBreakdown ───────────────────────
@@ -120,8 +125,7 @@ describe("Mobile/web API contract — spec 19 regression watch", () => {
       expect(res.body.qualityBreakdown).toBeDefined();
     });
 
-    it("current shape: /profiles/me does NOT include qualityBreakdown", async () => {
-      // Login as the seeded INDIVIDUAL user (email/password, internal provider).
+    it("includes qualityBreakdown in /profiles/me so Home needs one round-trip (spec 19 B4)", async () => {
       const login = await request(app)
         .post("/api/v1/auth/login")
         .send({
@@ -136,18 +140,15 @@ describe("Mobile/web API contract — spec 19 regression watch", () => {
       const me = await request(app)
         .get("/api/v1/profiles/me")
         .set("Authorization", `Bearer ${token}`);
-      // Route may not be mounted (404) or return without the field — both
-      // are current-state. When B4 is fixed, replace with a positive assertion.
-      if (me.status === 200) {
-        expect(me.body.qualityBreakdown).toBeUndefined();
-      } else {
-        expect([401, 403, 404]).toContain(me.status);
-      }
+      expect(me.status).toBe(200);
+      expect(me.body.qualityBreakdown).toBeDefined();
+      expect(me.body.qualityBreakdown.expertise).toBeDefined();
+      expect(me.body.qualityBreakdown.care).toBeDefined();
+      expect(me.body.qualityBreakdown.trust).toBeDefined();
+      // B2 applied to /me as well: name = display name, headline = role title.
+      expect(me.body.name).toBe("Test Individual");
+      expect(typeof me.body.headline).toBe("string");
     });
-
-    it.todo(
-      "includes qualityBreakdown in /profiles/me so Home screen needs only one round-trip (spec 19 B4)",
-    );
   });
 
   // ─── Unverified endpoints from spec 19 ───────────────────────────────
@@ -177,8 +178,15 @@ describe("Mobile/web API contract — spec 19 regression watch", () => {
       expect(typeof res.status).toBe("number");
     });
 
-    it.todo(
-      "customer-side review history endpoint — spec 19 table row 3 (no path assumed yet)",
-    );
+    it("customer-side review history at GET /api/v1/reviews/my-submissions (spec 19)", async () => {
+      // Empty-state: a fresh device fingerprint has no reviews yet.
+      const res = await request(app)
+        .get("/api/v1/reviews/my-submissions")
+        .query({ deviceFingerprint: "c".repeat(40) });
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.reviews)).toBe(true);
+      expect(res.body.reviews.length).toBe(0);
+      expect(res.body.pagination).toMatchObject({ page: 1, limit: 20, total: 0 });
+    });
   });
 });

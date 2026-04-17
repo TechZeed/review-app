@@ -14,9 +14,21 @@ export const loginSchema = z.object({
   firebaseToken: z.string().min(1, 'Firebase token is required'),
 });
 
-export const exchangeFirebaseTokenSchema = z.object({
-  firebaseToken: z.string().min(1, 'Firebase token is required'),
-});
+// Spec 19 B3: accept either `firebaseIdToken` (precise, matches spec 21 +
+// mobile clients) or `firebaseToken` (legacy web clients). Normalised to
+// `firebaseToken` downstream.
+export const exchangeFirebaseTokenSchema = z
+  .object({
+    firebaseToken: z.string().min(1).optional(),
+    firebaseIdToken: z.string().min(1).optional(),
+  })
+  .refine((v) => Boolean(v.firebaseToken || v.firebaseIdToken), {
+    message: 'firebaseIdToken (or firebaseToken) is required',
+    path: ['firebaseIdToken'],
+  })
+  .transform((v) => ({
+    firebaseToken: v.firebaseToken ?? v.firebaseIdToken!,
+  }));
 
 export const passwordLoginSchema = z.object({
   email: z.string().email('Invalid email address'),

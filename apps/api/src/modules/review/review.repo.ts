@@ -39,6 +39,24 @@ export class ReviewRepo extends BaseRepo<Review> {
   }
 
   /**
+   * Customer-side history: all reviews created from a given device
+   * fingerprint hash, newest first. Used by GET /reviews/my-submissions
+   * (spec 19 — customer-side review history).
+   */
+  async findByDeviceFingerprintHash(
+    deviceFingerprintHash: string,
+    options: { page: number; limit: number },
+  ): Promise<{ rows: Review[]; count: number }> {
+    const offset = (options.page - 1) * options.limit;
+    return this.model.findAndCountAll({
+      where: { deviceFingerprintHash },
+      order: [['createdAt', 'DESC']],
+      limit: options.limit,
+      offset,
+    });
+  }
+
+  /**
    * Find a review by reviewer phone hash and profile within a time window
    */
   async findByReviewerAndProfile(

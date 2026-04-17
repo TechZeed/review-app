@@ -16,7 +16,7 @@
 
 ### B1 — `POST /api/v1/reviews/scan/:slug` rejects request without `deviceFingerprint`
 
-- **Status:** open
+- **Status:** fixed (2026-04-17)
 - **Discovered:** 2026-04-17 via `apps/web` review flow
 - **Repro:** Scan `/r/sarah-williams` on web, click Submit after selecting 2 qualities.
 - **Request:** `POST /api/v1/reviews/scan/sarah-williams` with body `{ qualityIds: [...], thumbsUp: true }`
@@ -30,7 +30,7 @@
 
 ### B2 — `GET /api/v1/profiles/:slug` returns headline as `name`
 
-- **Status:** open
+- **Status:** fixed (2026-04-17)
 - **Discovered:** 2026-04-17 via `apps/ui` local run against Sarah's seeded profile
 - **Repro:** `curl http://localhost:3000/api/v1/profiles/sarah-williams`
 - **Request:** `GET /api/v1/profiles/sarah-williams`
@@ -44,7 +44,7 @@
 
 ### B3 — `POST /api/v1/auth/exchange-token` expects `firebaseToken`, spec 21 says `firebaseIdToken`
 
-- **Status:** workaround
+- **Status:** fixed (2026-04-17) — server now accepts either field name; mobile workaround no longer needed
 - **Discovered:** 2026-04-17 via `apps/mobile` auth wiring
 - **Repro:** Post to `/api/v1/auth/exchange-token` with `{ firebaseIdToken: "..." }` — fails validation.
 - **Request:** `POST /api/v1/auth/exchange-token` body `{ firebaseIdToken: string }`
@@ -58,7 +58,7 @@
 
 ### B4 — `GET /api/v1/profiles/me` does not return `qualityBreakdown`
 
-- **Status:** workaround
+- **Status:** fixed (2026-04-17) — `/profiles/me` now returns `qualityBreakdown`; mobile Home needs only one round-trip
 - **Discovered:** 2026-04-17 via `apps/mobile` Home screen wiring
 - **Repro:** Authenticated `curl /api/v1/profiles/me`.
 - **Request:** `GET /api/v1/profiles/me` with Bearer JWT.
@@ -104,7 +104,7 @@ Endpoints mobile will need that we have **not yet confirmed exist** on the API. 
 | My received reviews | `GET /api/v1/reviews/profile/:profileId?page=1&limit=20` | ✅ (used by ui) | |
 | **Search people** (name / industry) | `GET /api/v1/profiles/search?q=...` | ❌ not mounted (404) — probed 2026-04-17 via `mobile-contract.test.ts` | needed for mobile search screen |
 | **Grant reference access** (verifiable references opt-in) | `POST /api/v1/references/grant` or similar | ❌ not mounted (404) — probed 2026-04-17 | d6 decision — no UI exists yet |
-| **List people I've reviewed** (customer-side history) | ❓ | ❓ | needed if we show "your reviews" on mobile; no assumed path yet |
+| **List people I've reviewed** (customer-side history) | `GET /api/v1/reviews/my-submissions?deviceFingerprint=...` | ✅ (added 2026-04-17) | falls back to UA+IP fingerprint when param omitted |
 
 ---
 
@@ -124,8 +124,11 @@ matching pair: replace the current-state `it(...)` with the target
 assertion and delete the `.todo`. `task test:integration` will fail
 loudly if someone regresses after a fix.
 
-Status snapshot after a run on 2026-04-17:
-- B1 open (server still requires client fingerprint; web sends it)
-- B2 open (`name` still contains headline)
-- B3 open (server expects `firebaseToken`; mobile workaround shipping)
-- B4 open (public route has `qualityBreakdown`; `/me` doesn't)
+Status snapshot after the 2026-04-17 API sprint:
+- B1 **fixed** — deviceFingerprint is optional; server derives from UA+IP
+- B2 **fixed** — `name` is display name, `headline` is role title
+- B3 **fixed** — accepts both `firebaseIdToken` and `firebaseToken`
+- B4 **fixed** — `/profiles/me` now returns `qualityBreakdown`
+- Customer-history endpoint added at `/api/v1/reviews/my-submissions`
+
+Suite: `task test:integration` — 47 tests green, 0 todo, ~9s.

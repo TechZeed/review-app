@@ -196,6 +196,34 @@ export class ReviewService {
   }
 
   /**
+   * Customer-side history: reviews that were submitted from a specific
+   * device fingerprint. Public (no auth) — the fingerprint acts as the
+   * soft identity for anonymous customers. Spec 19 customer-history row.
+   */
+  async getMySubmissions(
+    deviceFingerprint: string,
+    options: { page: number; limit: number },
+  ): Promise<any> {
+    const deviceFingerprintHash = crypto
+      .createHash('sha256')
+      .update(deviceFingerprint)
+      .digest('hex');
+    const { rows, count } = await this.repo.findByDeviceFingerprintHash(
+      deviceFingerprintHash,
+      options,
+    );
+    return {
+      reviews: rows.map((r) => this.toReviewResponse(r)),
+      pagination: {
+        page: options.page,
+        limit: options.limit,
+        total: count,
+        totalPages: Math.ceil(count / options.limit),
+      },
+    };
+  }
+
+  /**
    * Get reviews for the authenticated user's profile
    */
   async getMyReviews(
