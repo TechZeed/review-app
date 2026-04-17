@@ -1,4 +1,5 @@
 import { faker } from "@faker-js/faker";
+import { QueryTypes } from "sequelize";
 import type { Migration } from "../umzug.js";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
@@ -113,13 +114,32 @@ function assignReviewsToMonths(totalReviews: number): number[] {
 export const up: Migration = async ({ context: sequelize }) => {
   const queryInterface = sequelize.getQueryInterface();
   const now = new Date();
+  const users = seedConfig.users as UserConfig[];
 
-  // Idempotency check
-  const existingUsers = await queryInterface.select(null, "users", {});
-  if (existingUsers && existingUsers.length > 0) {
-    console.log("Users already exist in database. Skipping seed.");
-    console.log("Run 'db:seed:down' first if you want to reset the data.");
+  // Idempotency check based on known demo users only.
+  // This allows seeding demo data into databases that already contain real users.
+  const seedEmails = users.map((user) => user.email);
+  if (seedEmails.length === 0) {
+    throw new Error(
+      "Seed config has no users defined. Please add users to seed-config.json before running seed.",
+    );
+  }
+  const inClause = seedEmails.map((email) => sequelize.escape(email)).join(", ");
+  const existingSeedUsers = await sequelize.query<{ email: string }>(
+    `SELECT email FROM users WHERE email IN (${inClause})`,
+    { type: QueryTypes.SELECT },
+  );
+
+  if (existingSeedUsers.length === seedEmails.length) {
+    console.log("Demo seed users already exist. Skipping seed.");
     return;
+  }
+
+  if (existingSeedUsers.length > 0) {
+    throw new Error(
+      `Partial demo seed detected (${existingSeedUsers.length}/${seedEmails.length} users present). ` +
+      "Please clean up partial seed data before running db:seed up again.",
+    );
   }
 
   console.log("Starting review-app demo data seeding...\n");
@@ -127,7 +147,6 @@ export const up: Migration = async ({ context: sequelize }) => {
   // -------------------------------------------------------
   // 1. USERS
   // -------------------------------------------------------
-  const users = seedConfig.users as UserConfig[];
   const userIds: Record<string, string> = {};
 
   const usersData = users.map((user) => {
