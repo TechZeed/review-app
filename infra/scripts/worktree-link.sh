@@ -37,9 +37,10 @@ echo
 LINKS=(
   ".env"
   ".env.dev"
-  ".env.test"
   "infra/dev/vault"
 )
+# Note: .env.test is committed (contains only fakes), so it's in the
+# worktree already via git — no symlink needed.
 
 for rel in "${LINKS[@]}"; do
   src="$PRIMARY/$rel"
