@@ -24,9 +24,18 @@ export class AuthService {
   }
 
   /**
-   * Verify a Firebase ID token and return decoded claims
+   * Verify a Firebase ID token and return decoded claims.
+   * `signInProvider` is the Firebase claim identifying which provider minted
+   * the token ("google.com", "password", "apple.com", etc.). We map that to
+   * our own `provider` enum when auto-creating users.
    */
-  async verifyFirebaseToken(idToken: string): Promise<{ uid: string; email: string; name?: string; picture?: string }> {
+  async verifyFirebaseToken(idToken: string): Promise<{
+    uid: string;
+    email: string;
+    name?: string;
+    picture?: string;
+    signInProvider: string;
+  }> {
     try {
       const decoded = await getFirebaseAuth().verifyIdToken(idToken);
       return {
@@ -34,6 +43,7 @@ export class AuthService {
         email: decoded.email ?? '',
         name: decoded.name ?? decoded.email?.split('@')[0],
         picture: decoded.picture,
+        signInProvider: decoded.firebase?.sign_in_provider ?? 'unknown',
       };
     } catch (error: any) {
       if (
@@ -173,12 +183,14 @@ export class AuthService {
       }
       await user.update(updates);
     } else {
-      // Auto-create user on first Google login
+      // Auto-create user on first Firebase sign-in (Google or admin-provisioned email+password).
+      // signInProvider comes from the Firebase ID token's `firebase.sign_in_provider` claim.
+      const provider = firebaseClaims.signInProvider === 'password' ? 'internal' : 'google';
       user = await this.repo.create({
         firebaseUid: firebaseClaims.uid,
         email: firebaseClaims.email,
         displayName: firebaseClaims.name || firebaseClaims.email.split('@')[0],
-        provider: 'google',
+        provider,
         role: 'INDIVIDUAL',
         status: 'active',
         avatarUrl: firebaseClaims.picture ?? null,

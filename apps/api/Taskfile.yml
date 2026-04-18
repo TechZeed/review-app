@@ -14,3 +14,10 @@ includes:
   test:
     taskfile: Taskfile.test.yml
     dotenv: ["../../.env.test"]
+
+  # Prod mirrors dev one-for-one. Uncomment when .env.prod exists.
+  # Every task added under `dev:` must also exist under `prod:` — same
+  # names, same shape, different dotenv scope. See CLAUDE.md "Core rules".
+  # prod:
+  #   taskfile: Taskfile.prod.yml
+  #   dotenv: ["../../.env.prod"]

@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: review-app-postgres
+    ports:
+      - "${POSTGRES_PORT:-10032}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - review_app_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - review-app-network
+
+volumes:
+  review_app_postgres_data:
+
+networks:
+  review-app-network:
+    name: review-app-network

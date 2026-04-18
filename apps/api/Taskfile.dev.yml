@@ -46,49 +46,45 @@ tasks:
 
   deploy:api:
     desc: Deploy API to Cloud Run dev
-    dir: "{{.ROOT_DIR}}"
-    cmd: node deploy.js api dev
+    cmd: node {{.REPO_ROOT}}/deploy.js api dev
 
   deploy:web:
     desc: Deploy Web to Cloud Run dev
-    dir: "{{.ROOT_DIR}}"
-    cmd: node deploy.js web dev
+    cmd: node {{.REPO_ROOT}}/deploy.js web dev
 
   deploy:ui:
     desc: Deploy UI to Cloud Run dev
-    dir: "{{.ROOT_DIR}}"
-    cmd: node deploy.js ui dev
+    cmd: node {{.REPO_ROOT}}/deploy.js ui dev
 
   deploy:all:
     desc: Deploy all services to Cloud Run dev
-    dir: "{{.ROOT_DIR}}"
-    cmd: node deploy.js all dev
+    cmd: node {{.REPO_ROOT}}/deploy.js all dev
 
   # ─── Mobile ──────────────────────────────────────────────────────────────────
 
   mobile:config:
-    desc: Render apps/mobile/eas.json from template using .env.dev values
-    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/dev/apply-eas-config.ts
+    desc: Render apps/mobile/{eas,app}.json from templates using .env.dev
+    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/dev/apply-mobile-config.ts
 
   deploy:mobile:
     desc: Build Android locally and submit to Play Store internal track
     deps: [mobile:config]
-    dir: "{{.ROOT_DIR}}/apps/mobile"
+    dir: "{{.REPO_ROOT}}/apps/mobile"
     cmds:
       - eas build --platform android --profile production --local --output ./build.aab --non-interactive
       - eas submit --platform android --path ./build.aab --non-interactive
       - rm -f ./build.aab
 
   deploy:mobile:preview:
-    desc: Build preview APK locally
+    desc: Build preview APK locally for sharing with testers
     deps: [mobile:config]
-    dir: "{{.ROOT_DIR}}/apps/mobile"
-    cmd: eas build --platform android --profile preview --local --output ./preview.apk --non-interactive
+    dir: "{{.REPO_ROOT}}/apps/mobile"
+    cmd: eas build --platform android --profile preview --local --output ./preview.apk
 
   deploy:mobile:cloud:
     desc: Build Android on EAS cloud and submit (last-resort when local fails)
     deps: [mobile:config]
-    dir: "{{.ROOT_DIR}}/apps/mobile"
+    dir: "{{.REPO_ROOT}}/apps/mobile"
     cmds:
       - eas build --platform android --profile production --non-interactive
       - eas submit --platform android --latest --non-interactive
@@ -96,7 +92,7 @@ tasks:
   deploy:mobile:ios:
     desc: Build iOS locally and submit to TestFlight (needs Xcode + Apple auth)
     deps: [mobile:config]
-    dir: "{{.ROOT_DIR}}/apps/mobile"
+    dir: "{{.REPO_ROOT}}/apps/mobile"
     cmds:
       - eas build --platform ios --profile production --local --output ./build.ipa --non-interactive
       - eas submit --platform ios --path ./build.ipa --non-interactive
@@ -105,7 +101,7 @@ tasks:
   deploy:mobile:ios:cloud:
     desc: Build iOS on EAS cloud and submit to TestFlight (fallback)
     deps: [mobile:config]
-    dir: "{{.ROOT_DIR}}/apps/mobile"
+    dir: "{{.REPO_ROOT}}/apps/mobile"
     cmds:
       - eas build --platform ios --profile production --non-interactive
       - eas submit --platform ios --latest --non-interactive
@@ -137,6 +133,10 @@ tasks:
   sync:vault:dry:
     desc: Preview what sync:vault would push (no writes)
     cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/dev/sync-vault.ts --dry
+
+  vault:pull:
+    desc: Fetch GCP vault files from Secret Manager to infra/dev/vault/
+    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/dev/sync-vault.ts pull {{.CLI_ARGS}}
 
   # ─── Status ──────────────────────────────────────────────────────────────────
 

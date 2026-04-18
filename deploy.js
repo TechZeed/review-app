@@ -49,7 +49,6 @@ const SECRET_MAPPING = {
 const LOCAL_ONLY_KEYS = new Set([
   'POSTGRES_HOST',
   'POSTGRES_PORT',
-  'FIREBASE_SERVICE_ACCOUNT_PATH',
   'EXPO_TOKEN',
   'PORT',
 ]);
@@ -64,6 +63,7 @@ const VITE_BUILD_ARG_KEYS = [
   'VITE_FIREBASE_MESSAGING_SENDER_ID',
   'VITE_FIREBASE_APP_ID',
   'VITE_FIREBASE_MEASUREMENT_ID',
+  'VITE_FEATURE_EMAIL_LOGIN',
 ];
 
 // Forced overrides — always applied regardless of .env.<env> contents.
@@ -97,6 +97,9 @@ function timestamp() {
   ].join('');
 }
 
+const SECTION_HEADER_RE =
+  /^#+\s*#{3,}\s*(GCP Vault Files|GitHub Vault Files|GCP Secrets|GitHub Secrets|Both|Local)\s*#{3,}/i;
+
 function loadEnvFile(env) {
   const filePath = path.join(__dirname, `.env.${env}`);
   if (!fs.existsSync(filePath)) {
@@ -104,9 +107,21 @@ function loadEnvFile(env) {
     process.exit(1);
   }
   const result = {};
+  const gcpVaultFiles = {}; // KEY → local path (repo-root-resolved)
+  let section = null;
   const lines = fs.readFileSync(filePath, 'utf8').split('\n');
   for (const raw of lines) {
     const line = raw.trim();
+
+    const header = line.match(SECTION_HEADER_RE);
+    if (header) {
+      const n = header[1].toLowerCase();
+      if (n.startsWith('gcp vault')) section = 'gcp_vault';
+      else if (n.startsWith('github vault')) section = 'gh_vault';
+      else section = 'other';
+      continue;
+    }
+
     if (!line || line.startsWith('#')) continue;
     const eq = line.indexOf('=');
     if (eq === -1) continue;
@@ -119,8 +134,24 @@ function loadEnvFile(env) {
       value = value.slice(1, -1);
     }
     result[key] = value;
+
+    if (section === 'gcp_vault' && key.endsWith('_PATH')) {
+      const stripped = value.startsWith('../../') ? value.slice(6) : value;
+      gcpVaultFiles[key] = path.resolve(__dirname, stripped);
+    }
   }
+  result.__gcpVaultFiles = gcpVaultFiles;
   return result;
+}
+
+// Vault file key → { secretName, mountPath }.
+// FIREBASE_SA_PATH → { secretName: 'review-firebase-sa', mountPath: '/secrets/firebase-sa.json' }
+function vaultFileMeta(key, localPath) {
+  const stem = key.slice(0, -'_PATH'.length).toLowerCase().replace(/_/g, '-');
+  return {
+    secretName: `review-${stem}`,
+    mountPath: `/secrets/${path.basename(localPath)}`,
+  };
 }
 
 function requireKeys(envMap, keys, context) {
@@ -184,29 +215,77 @@ function syncSecrets(envMap) {
   for (const [envVar, secretName] of Object.entries(SECRET_MAPPING)) {
     upsertSecret(secretName, envMap[envVar]);
   }
+
+  // Vault files: push file CONTENTS to Secret Manager so Cloud Run can
+  // --set-secrets mount them at runtime.
+  const vaultFiles = envMap.__gcpVaultFiles || {};
+  for (const [envKey, localPath] of Object.entries(vaultFiles)) {
+    const { secretName } = vaultFileMeta(envKey, localPath);
+    if (!fs.existsSync(localPath)) {
+      console.error(`  [skip] ${envKey} → ${localPath} not found`);
+      continue;
+    }
+    const bytes = fs.readFileSync(localPath);
+    if (!secretExists(secretName)) {
+      console.log(`  [create] ${secretName}`);
+      execSync(
+        `gcloud secrets create ${secretName} --replication-policy=automatic --project=${GCP_PROJECT}`,
+        { stdio: 'inherit' },
+      );
+    }
+    console.log(`  [update] ${secretName} (from ${path.relative(__dirname, localPath)})`);
+    execSync(
+      `gcloud secrets versions add ${secretName} --data-file=- --project=${GCP_PROJECT}`,
+      { input: bytes, stdio: ['pipe', 'inherit', 'inherit'] },
+    );
+  }
 }
 
-function buildApiSecretsFlag() {
-  return Object.entries(SECRET_MAPPING)
-    .map(([envVar, secret]) => `${envVar}=${secret}:latest`)
-    .join(',');
+function buildApiSecretsFlag(envMap) {
+  const stringSecrets = Object.entries(SECRET_MAPPING).map(
+    ([envVar, secret]) => `${envVar}=${secret}:latest`,
+  );
+
+  // Mount vault files as /secrets/<basename>:<secretName>:latest.
+  // Cloud Run writes the file at container start via platform IAM; app
+  // never needs Secret Manager permissions at runtime.
+  const vaultFiles = envMap.__gcpVaultFiles || {};
+  const fileMounts = Object.entries(vaultFiles).map(([envKey, localPath]) => {
+    const { secretName, mountPath } = vaultFileMeta(envKey, localPath);
+    return `${mountPath}=${secretName}:latest`;
+  });
+
+  return [...stringSecrets, ...fileMounts].join(',');
 }
 
 // ---------------------------------------------------------------------------
 // Build Cloud Run env var set from .env.<env>
 // ---------------------------------------------------------------------------
 
-function buildCloudRunEnv(envMap) {
+function buildCloudRunEnv(envMap, deployEnv) {
   const secretKeys = new Set(Object.keys(SECRET_MAPPING));
   const viteKeys = new Set(VITE_BUILD_ARG_KEYS);
+  const vaultFiles = envMap.__gcpVaultFiles || {};
+  const vaultKeys = new Set(Object.keys(vaultFiles));
   const out = {};
   for (const [k, v] of Object.entries(envMap)) {
+    if (k.startsWith('__')) continue;     // internal bookkeeping
     if (secretKeys.has(k)) continue;      // injected via --set-secrets
     if (LOCAL_ONLY_KEYS.has(k)) continue; // dev-machine only
     if (viteKeys.has(k)) continue;        // baked into frontend bundle at build time
+    if (vaultKeys.has(k)) continue;       // overridden below to the Cloud Run mount path
     out[k] = v;
   }
+  // Override each vault file env var with its Cloud Run mount path so the
+  // running app sees e.g. FIREBASE_SA_PATH=/secrets/firebase-sa.json.
+  for (const [envKey, localPath] of Object.entries(vaultFiles)) {
+    const { mountPath } = vaultFileMeta(envKey, localPath);
+    out[envKey] = mountPath;
+  }
   Object.assign(out, FORCED_ENV);
+  // APP_ENV selects which apps/api/config/application.<env>.env the runtime
+  // loads. Maps the deploy env (dev|staging|prod) → APP_ENV (dev|prod).
+  out.APP_ENV = deployEnv === 'staging' ? 'prod' : deployEnv;
   return out;
 }
 
@@ -252,8 +331,8 @@ function writeEnvVarsFile(envPairs) {
 
 function deployApi(image, env, envMap) {
   const serviceName = `review-api-${env}`;
-  const secrets = buildApiSecretsFlag();
-  const envPairs = buildCloudRunEnv(envMap);
+  const secrets = buildApiSecretsFlag(envMap);
+  const envPairs = buildCloudRunEnv(envMap, env);
   const envVarsFile = writeEnvVarsFile(envPairs);
 
   const cmd = [

@@ -8,7 +8,7 @@ import React, {
 } from "react";
 
 import { onAuthError } from "@/lib/api";
-import { completeSignIn, type AuthUser } from "@/lib/auth";
+import { completeSignIn, signInWithEmailPassword, type AuthUser } from "@/lib/auth";
 import { clearToken, getToken, setToken } from "@/lib/storage";
 
 interface AuthContextValue {
@@ -16,6 +16,7 @@ interface AuthContextValue {
   token: string | null;
   isLoading: boolean;
   signIn: (googleIdToken: string) => Promise<void>;
+  signInWithPassword: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -68,9 +69,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(appUser);
   }, []);
 
+  const signInWithPassword = useCallback(async (email: string, password: string) => {
+    const { token: appToken, user: appUser } = await signInWithEmailPassword(
+      email,
+      password,
+    );
+    setTokenState(appToken);
+    setUser(appUser);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ user, token, isLoading, signIn, signOut }),
-    [user, token, isLoading, signIn, signOut],
+    () => ({ user, token, isLoading, signIn, signInWithPassword, signOut }),
+    [user, token, isLoading, signIn, signInWithPassword, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

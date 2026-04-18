@@ -1,5 +1,6 @@
 import admin from "firebase-admin";
 import { readFileSync } from "node:fs";
+import { isAbsolute, resolve } from "node:path";
 import { env } from "./env.js";
 import { logger } from "./logger.js";
 
@@ -25,15 +26,18 @@ export function initializeFirebase(): void {
         }),
       });
     }
-    // Option 2: Service account JSON file path
-    else if (env.FIREBASE_SERVICE_ACCOUNT_PATH) {
-      const serviceAccount = JSON.parse(
-        readFileSync(env.FIREBASE_SERVICE_ACCOUNT_PATH, "utf-8"),
-      );
+    // Option 2: Vault file path — absolute on Cloud Run (/secrets/...),
+    // relative to apps/api cwd locally (../../infra/dev/vault/...).
+    else if (env.FIREBASE_SA_PATH) {
+      const saPath = isAbsolute(env.FIREBASE_SA_PATH)
+        ? env.FIREBASE_SA_PATH
+        : resolve(process.cwd(), env.FIREBASE_SA_PATH);
+      const serviceAccount = JSON.parse(readFileSync(saPath, "utf-8"));
       firebaseApp = admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         projectId: env.FIREBASE_PROJECT_ID,
       });
+      logger.info(`Firebase credential loaded from ${saPath}`);
     }
     // Option 3: GOOGLE_APPLICATION_CREDENTIALS file path (auto-detected by SDK)
     else if (env.GOOGLE_APPLICATION_CREDENTIALS) {

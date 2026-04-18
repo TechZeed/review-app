@@ -1,20 +1,68 @@
 # Spec 16: Authentication & User Management Strategy
 
 **Project:** ReviewApp
-**Date:** 2026-04-16
+**Date:** 2026-04-16 (amended 2026-04-18 — email+password is testing-only, UnifiedAuth UX added)
 **Firebase Project:** humini-review
-**Decisions:** d11-d14 from huddle
+**Decisions:** d11-d14, d19 (email+password testing-only) from huddle
 
 ---
 
 ## 1. Auth Strategy
 
-Dual authentication — Google (Firebase) for public registration, email/password (internal) for admin-managed accounts.
+Dual authentication — Google (Firebase) for public registration, email+password (bcrypt-in-our-own-users-table, reqsume-style) for admin-managed accounts.
 
-| Provider | Who uses it | Registration | Login |
+| Provider | Who uses it | Registration | Login | Password store |
+|---|---|---|---|---|
+| **Google (Firebase)** | All public users | Yes — only way to self-register | `POST /auth/exchange-token` | Firebase |
+| **Email/Password (internal)** | Admin-created accounts + testing | **No public signup — admin creates via `POST /auth/admin/create-user`** | `POST /auth/login` | `users.password_hash` (bcrypt, 12 rounds) |
+
+### 1.1 Why two separate password stores
+
+The two providers don't converge on Firebase. Google sign-in uses Firebase OAuth and produces a Firebase ID token that `/auth/exchange-token` verifies with the Firebase Admin SDK. Email+password users live **only** in our `users` table — Firebase is not involved at all. `POST /auth/login` looks up the row by email and `bcrypt.compare` against `password_hash`. This mirrors reqsume's pattern (`/apps/api/src/services/user.go` — `RegisterUser` / `Login`) and keeps the two paths completely independent: a Firebase outage doesn't break admin-provisioned accounts, and we don't need Firebase Admin SDK to create or reset a password user.
+
+### 1.2 Email+password scope — testing-first
+
+Email+password is **primarily a testing convenience**. It may never ship to production as a user-facing feature. Treating it as testing-first lets us skip:
+
+- Force-password-reset-on-first-sign-in for admin-provisioned accounts
+- Email-based password reset flow
+- Password-strength meter in the UI
+- Account lockout after N failed attempts
+- Audit logging on sign-in
+
+If promoted to production, add those. Until then, the admin uses `POST /auth/admin/create-user` with a known temp password, hands it to the tester, done.
+
+## 1.2 UnifiedAuth UX (web + mobile)
+
+Both web (`apps/ui`) and mobile (`apps/mobile`) render a **single unified auth screen** — Google is the primary action; email+password is a secondary affordance behind a feature flag. Pattern lifted from `reqsume/apps/ui/src/components/auth/UnifiedAuth.tsx`.
+
+```
+┌─────────────────────────────┐
+│    Welcome to ReviewApp     │
+│                             │
+│  [ Continue with Google ]   │  ← primary button
+│                             │
+│  ───────── OR ─────────     │
+│                             │
+│  [ Continue with Apple ]    │  ← disabled / "coming soon"
+│                             │
+│  🔒 Secured with Firebase   │
+│                             │
+│  Sign in with email and     │  ← link, only shown if
+│          password           │     FEATURE_EMAIL_LOGIN=true
+└─────────────────────────────┘
+```
+
+Clicking the email+password link reveals an in-place `SignIn` form (email + password + submit). **No signup form anywhere in the public flow.**
+
+### Feature flags
+
+| Key | Scope | Default prod | Default dev |
 |---|---|---|---|
-| **Google (Firebase)** | All public users | Yes — only way to register | Yes |
-| **Email/Password (internal)** | Admin-created accounts | No public signup — admin creates | Yes |
+| `VITE_FEATURE_EMAIL_LOGIN` | `apps/ui`, `apps/web` | `false` | `true` |
+| `EXPO_PUBLIC_FEATURE_EMAIL_LOGIN` | `apps/mobile` | `false` | `true` |
+
+Both live in `.env.dev` (Vite / Expo build args — baked into the bundle at build time, same as other `VITE_*`/`EXPO_PUBLIC_*` keys).
 
 ## 2. Firebase Configuration
 
@@ -70,19 +118,38 @@ Return: { accessToken (JWT HS256, 24h), user: { id, email, name, role, tier } }
 Frontend: store token in localStorage, redirect to /dashboard
 ```
 
-### Flow 2: Email/Password Login (Admin-Created Accounts)
+### Flow 2: Email/Password Login (Admin-Created Accounts — testing-first)
+
+Reqsume-style — our backend owns the password. Firebase is not involved in this flow.
 
 ```
-Admin creates user: POST /api/v1/auth/admin/create-user { email, password, name, role }
+Admin provisions user: POST /api/v1/auth/admin/create-user
+    body: { email, password, name, role }
     ↓
-User logs in: POST /api/v1/auth/login { email, password }
+API: bcrypt.hash(password, 12) → insert users row
+    { provider: 'internal', passwordHash, role, status: 'active' }
     ↓
-API: find user by email, bcrypt.compare(password, hash)
+Admin hands the temp password to the user
+
+⸺
+
+User enters email+password in UnifiedAuth (email+password affordance shown by feature flag)
+    ↓
+Frontend: POST /api/v1/auth/login { email, password }   ← bcrypt path, not exchange-token
+    ↓
+API: find user by email, reject if provider != 'internal',
+     bcrypt.compare(password, user.passwordHash)
     ↓
 Return: { accessToken (JWT), user }
 ```
 
-No public registration endpoint for email/password.
+**Deliberately skipped for now (deferred until promoted to production):**
+
+- Password-reset-via-email
+- Force-reset-on-first-sign-in for admin-provisioned accounts
+- Account lockout after N failed attempts
+- Password-strength meter
+- Audit logging on password sign-in
 
 ### Flow 3: Role Upgrade Request
 
@@ -109,8 +176,8 @@ Features unlocked
 ### Public
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/auth/exchange-token` | Firebase token → JWT |
-| POST | `/auth/login` | Email/password → JWT |
+| POST | `/auth/exchange-token` | Firebase ID token (Google OAuth) → JWT |
+| POST | `/auth/login` | Email+password (bcrypt against `users.password_hash`) → JWT |
 
 ### Authenticated (any role)
 | Method | Path | Purpose |
@@ -123,7 +190,7 @@ Features unlocked
 ### Admin only
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/auth/admin/create-user` | Create email/password user |
+| POST | `/auth/admin/create-user` | Create email+password user (bcrypt hash into `users`, `provider: 'internal'`) |
 | GET | `/auth/admin/role-requests` | List pending role requests |
 | POST | `/auth/admin/role-requests/:id/approve` | Approve role request |
 | POST | `/auth/admin/role-requests/:id/reject` | Reject role request |
@@ -136,9 +203,9 @@ Features unlocked
 ### Users table (existing — add fields)
 ```
 provider         VARCHAR(20)  DEFAULT 'google'    -- google | internal
-firebase_uid     VARCHAR(128) UNIQUE              -- Firebase UID (null for internal)
-password_hash    VARCHAR(255)                      -- bcrypt hash (null for Google users)
-avatar_url       VARCHAR(512)                      -- from Google profile
+firebase_uid     VARCHAR(128) UNIQUE              -- Firebase UID (null for internal users)
+password_hash    VARCHAR(255)                      -- bcrypt hash (null for Google users; reqsume-style)
+avatar_url       VARCHAR(512)                      -- from Google profile (null for internal users)
 ```
 
 ### Role Requests table (new)
@@ -179,8 +246,9 @@ role_requests
 ## 8. Security Rules
 
 - Google registration only — no public email/password signup
-- Firebase ID token verified server-side via Admin SDK (not trusted client-side)
-- Email/password accounts: bcrypt with 12 rounds
+- Firebase ID token verified server-side via Admin SDK (not trusted client-side) — provider-agnostic
+- Email+password accounts: **bcrypt hash in our own `users` table** (reqsume-style); 12 rounds. Admin-provisioned via `POST /auth/admin/create-user`. Testing-first.
+- Email+password UI gated by `VITE_FEATURE_EMAIL_LOGIN` / `EXPO_PUBLIC_FEATURE_EMAIL_LOGIN` — off by default in production.
 - Role upgrade requires admin approval — no self-promotion
 - EMPLOYER/RECRUITER features gated by both role AND active subscription
 - Suspended users (status != active) blocked at middleware level

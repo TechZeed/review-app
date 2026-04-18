@@ -1,9 +1,19 @@
 import { logger } from "./config/logger.js";
-import { resolveAllSecrets } from "./config/configResolver.js";
+import { resolveAllSecrets, verifyVaultFiles } from "./config/configResolver.js";
+import { loadAppEnvDefaults } from "./config/appEnvLoader.js";
 
 async function main() {
+  // 0. Load committed env-specific defaults (apps/api/config/application.<env>.env).
+  //    process.env wins — Cloud Run --set-env-vars and local .env.* override.
+  const { appEnv, file } = loadAppEnvDefaults();
+  logger.info(`App environment: ${appEnv}${file ? ` (loaded ${file})` : " (no defaults file)"}`);
+
   // 1. Resolve secrets: env vars first, GCP Secret Manager fallback
   await resolveAllSecrets();
+
+  // 1b. Sanity-check that every *_PATH env points to a readable file.
+  // Fails fast at boot instead of during the first auth request.
+  verifyVaultFiles();
 
   // 2. Now import env (Zod parse happens on import — secrets must be resolved first)
   const { env } = await import("./config/env.js");
@@ -46,6 +56,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  logger.error("fatal startup error", { err });
+  logger.error("fatal startup error", { err, message: err?.message, stack: err?.stack });
   process.exit(1);
 });

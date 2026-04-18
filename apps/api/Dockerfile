@@ -52,6 +52,9 @@ RUN addgroup -S app && adduser -S app -G app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package*.json ./
+# Committed env-specific defaults (loaded by loadAppEnvDefaults at startup).
+# Cloud Run --set-env-vars / --set-secrets still override anything here.
+COPY config ./config
 
 USER app
 

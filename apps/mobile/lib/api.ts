@@ -133,3 +133,19 @@ export function exchangeToken(
     token: null,
   });
 }
+
+/**
+ * Password login for admin-provisioned accounts. Reqsume-style: our API
+ * stores the bcrypt hash in the `users` table; Firebase is not involved.
+ * Returns the same {token, user} shape as exchangeToken.
+ */
+export function passwordLogin(
+  email: string,
+  password: string,
+): Promise<ExchangeTokenResponse> {
+  return apiFetch<ExchangeTokenResponse>("/api/v1/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+    token: null,
+  });
+}

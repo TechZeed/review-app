@@ -1,11 +1,11 @@
 name: ci
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_call: # allow reuse by deploy workflows
+  # Manual only — we stay within GitHub's free-tier minutes by never
+  # running CI on push/PR. Trigger from the Actions tab or another
+  # workflow via workflow_call.
+  workflow_dispatch:
+  workflow_call:
 
 concurrency:
   group: ci-${{ github.head_ref || github.ref }}

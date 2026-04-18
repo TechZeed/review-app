@@ -1,4 +1,7 @@
-import { signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
+import {
+  signInWithPopup,
+  signOut as firebaseSignOut,
+} from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
 import { apiFetch } from './api';
 
@@ -32,6 +35,21 @@ export async function exchangeToken(firebaseToken: string): Promise<ExchangeToke
   return apiFetch<ExchangeTokenResponse>('/api/v1/auth/exchange-token', {
     method: 'POST',
     body: JSON.stringify({ firebaseToken }),
+  });
+}
+
+/**
+ * Sign in with email+password for admin-provisioned accounts. Reqsume-style:
+ * password hash lives in our own `users` table (bcrypt), Firebase is not
+ * involved. Feature-gated in the UI via VITE_FEATURE_EMAIL_LOGIN (see spec 16).
+ */
+export async function signInWithEmailPassword(
+  email: string,
+  password: string,
+): Promise<ExchangeTokenResponse> {
+  return apiFetch<ExchangeTokenResponse>('/api/v1/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
   });
 }
 

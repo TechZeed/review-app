@@ -29,50 +29,90 @@ task <label>:<task>
 
 Three environment labels, each with its own dotenv scope:
 
-- `local:*` → reads `.env` (local Postgres on `:6132`, mock Firebase/Stripe)
+- `local:*` → reads `.env` (Docker-Compose Postgres on `:10032`, mock Firebase/Stripe)
 - `dev:*` → reads `.env.dev` (dev Cloud SQL via proxy on `:6199`, real dev GCP)
 - `test:*` → reads `.env.test` (Testcontainers on `:10532`)
 
+Each label owns a port range (`local:10032+`, `dev:6199`, `test:10532`) so multiple stacks can coexist on the dev machine.
+
 **Do not add `dotenv:` inside the included Taskfiles** — Task 3 forbids it and it would leak across envs. Scope lives only at the include site (`Taskfile.yml`). See memory file `feedback_taskfile_include_dotenv.md`.
 
-Key tasks (all under `dev:` unless noted):
+Key tasks:
 
-- `dev:startproxy` — Cloud SQL Auth Proxy on `:6199`
-- `dev:migrate`, `dev:migrate:down`, `dev:migrate:status`
-- `dev:seed`, `dev:seed:down`, `dev:seed:status`
+**Local** (Docker Postgres, mock external deps, `.env`):
+- `local:bootstrap` — first-run setup: `infra:up` + wait-healthy + `migrate` + `seed`
+- `local:dev` — day-to-day: ensure infra up, start API dev server
+- `local:infra:up | down | reset | ps | wait` — manage the local docker-compose stack
+- `local:server | migrate | seed | psql | test | build` — individual ops (run via `./run.sh local …`)
+- `local:stripe:listen` — forward Stripe webhooks to local API
+
+**Dev** (deploys to GCP, reads `.env.dev`):
 - `dev:deploy:api | deploy:web | deploy:ui | deploy:all` — Cloud Run deploy
 - `dev:logs` — live stream Cloud Run logs (tees to `devlogs.log`)
-- `dev:sync:vault` — distribute `.env.dev` to GCP Secret Manager + GitHub Secrets
-- `dev:mobile:config` — render `apps/mobile/eas.json` from `eas.template.json`
+- `dev:sync:vault` — push `.env.dev` strings + vault-file secrets to GCP Secret Manager + GitHub Secrets (`:dry` for preview)
+- `dev:vault:pull [-- --force]` — fetch GCP vault files to `infra/dev/vault/` (new-machine bootstrap)
+- `dev:mobile:config` — render `apps/mobile/{eas,app}.json` from templates
 - `dev:deploy:mobile` — Android AAB → Play internal (uses `--local`)
-- `dev:deploy:mobile:preview` — Android APK (preview profile)
+- `dev:deploy:mobile:preview` — Android APK for tester sideload
 - `dev:deploy:mobile:ios` — iOS IPA → TestFlight
-- `dev:deploy:mobile:*:cloud` — same, but EAS cloud (fallback only — queue is slow)
 
-**Per-app scripts** (when not using Taskfile):
+**Test** (Testcontainers Postgres on `:10532`, `.env.test`):
+- `test:integration` — full integration run (db:reset + vitest + teardown)
 
-| App | dev | build | test |
-|---|---|---|---|
-| api | `npm run dev` | `npm run build` | `npm run test` (vitest) |
-| web | `npm run dev` | `npm run build` | — |
-| ui | `npm run dev` | `npm run build` | — |
-| mobile | `npm run start` | `eas build --local ...` | — |
-
-**api/run.sh wrapper** — `./run.sh <local|dev|test> <server|migrate|seed|psql|test|build>`. Loads the right env file, runs the command. Used internally by Taskfile tasks.
+_Also available but rarely needed: `dev:startproxy` (Cloud SQL Auth Proxy on `:6199`), `dev:migrate`, `dev:seed`, `dev:deploy:mobile:*:cloud` (slow EAS cloud fallback). Normal dev work uses `local:*` against Docker Postgres._
 
 **Single vitest file**: `cd apps/api && npx vitest run path/to/file.test.ts`.
 
-## `.env.dev` is the single source of truth
+## `.env.dev` — source of truth for secrets & overrides
+
+`.env.dev` holds **secrets and machine/tenant-specific values** (gitignored). Non-secret env-varying defaults live in `apps/api/config/application.<env>.env` (committed) — see the "Two-layer env pattern" section below.
 
 Section headers in `.env.dev` are **parsed by scripts** — do not rename:
 
-- `##### GCP Secrets #####` — `infra/dev/sync-vault.ts` pushes each key to GCP Secret Manager (with `review-*` prefix mapping, matches `SECRET_MAP` in `apps/api/src/config/configResolver.ts`).
-- `##### GitHub Secrets #####` — same script pushes these via `gh secret set` for CI.
-- `##### Local #####` — stays here, used only for local dev runs.
+- `##### GCP Secrets #####` / `##### GitHub Secrets #####` / `##### Both #####` — pushed to the corresponding store by `infra/dev/sync-vault.ts`.
+- `##### GCP Vault Files #####` / `##### GitHub Vault Files #####` — **file contents** pushed; see the file-vault pattern below.
+- `##### Local #####` — stays local.
 
-App runtime code **must not read `.env.dev` in production**. It reads `process.env` which is populated by Cloud Run `--set-env-vars` / `--set-secrets`. `ConfigResolver` falls back to GCP Secret Manager if an env var is missing.
+Runtime code **must not read `.env.dev` in production** — Cloud Run populates `process.env` via `--set-env-vars` / `--set-secrets`. `ConfigResolver` falls back to GCP Secret Manager if an env var is missing.
 
-`apps/mobile/eas.json` is **generated** from `apps/mobile/eas.template.json` using `${APPLE_ID}`, `${APPLE_TEAM_ID}`, `${ASC_APP_ID}` from `.env.dev`. `eas.json` is gitignored. The render script is `infra/dev/apply-eas-config.ts`; `dev:mobile:config` task runs it and is a dep of every `deploy:mobile*` task.
+`apps/mobile/eas.json` **and** `apps/mobile/app.json` are both **generated** from `apps/mobile/eas.template.json` + `apps/mobile/app.template.json` using `${VAR}` placeholders sourced from `.env.dev`. Both output files are gitignored. The render script is `infra/dev/apply-mobile-config.ts`; `dev:mobile:config` task runs it and is a dep of every `deploy:mobile*` task. **Never edit `app.json` or `eas.json` directly — edit the `.template.json` and/or add the var to `.env.dev`.**
+
+## Two-layer env pattern (API)
+
+The API has two env layers, loaded in this precedence:
+
+1. **`apps/api/config/application.<APP_ENV>.env`** — committed, non-secret defaults (log level, feature flags, tunables). Ships with the code. Loaded at startup by `loadAppEnvDefaults()` via dotenv `override:false`.
+2. **`.env.<env>` at repo root** (gitignored) locally, OR Cloud Run `--set-env-vars` / `--set-secrets` in prod — **always wins**. Holds secrets, machine-specific values, and any explicit override.
+
+Selector is `APP_ENV` (values: `local | dev | test | prod`). Exported by `run.sh` (from its `$ENV` arg), by `deploy.js` (derived from the deploy env), and by `Taskfile.local.yml` indirectly via run.sh. Falls back to `NODE_ENV` mapping if unset.
+
+**Rules:**
+- Never put secrets or URLs that differ between tenants/projects into `application.*.env` — those belong in `.env.*` (gitignored) or GCP Secret Manager.
+- When adding a new env-varying default, edit all four `application.{local,dev,test,prod}.env` files at once; they're meant to stay in lockstep on keys (values may differ).
+- The `config/` folder is copied into the Docker image (`Dockerfile: COPY config ./config`) so Cloud Run sees the file at runtime.
+
+## File vault pattern
+
+Binary/JSON credentials (service accounts, signing keys) live in `infra/dev/vault/` — gitignored, never committed. Paths are declared in `.env.dev` under two new sections:
+
+- `##### GCP Vault Files #####` — contents pushed to GCP Secret Manager by `task dev:sync:vault`. Cloud Run mounts each as a file at `/secrets/<basename>` via `--set-secrets` (emitted by `deploy.js`). App reads `process.env[KEY_PATH]` — which locally is `../../infra/dev/vault/…` and on Cloud Run is `/secrets/…`.
+- `##### GitHub Vault Files #####` — contents pushed to GitHub Secrets as base64. Decoded by `.github/actions/hydrate-vault` as the first step of any workflow that needs them.
+
+**The `_PATH` suffix is load-bearing.** Keys must end in `_PATH` — `sync-vault.ts` uses it to detect file entries, and the API's startup `verifyVaultFiles()` sanity-check iterates every `*_PATH` env key and fails boot if any file is missing.
+
+**Runtime contract:** `ConfigResolver.resolveFilePath(key)` returns the path. The app never calls Secret Manager for vault files at runtime — writing is the environment's job (Cloud Run mount, CI hydrate action, or `task dev:vault:pull` locally).
+
+**New developer bootstrap:** `git clone` → fill `GCP_PROJECT_ID` in `.env.dev` → `gcloud auth login` → `task dev:vault:pull` → vault populated. See `docs/specs/22-file-vault-pattern.md`.
+
+## Core rules — no hardcoding, always via task
+
+These override convenience. If you catch yourself reaching for a raw CLI or typing a literal value into a config file, stop.
+
+1. **`.env.dev` is the single source of truth for every env-varying value** — URLs, project IDs, keys, owner names, Firebase config, OAuth client IDs, mobile identifiers, all of it. If a value changes between local / dev / prod, it lives in `.env.*`, never in committed code or JSON.
+2. **Committed JSON config files that vary by env must be generated from `.template.json`** (see `eas.template.json`, `app.template.json`). The rendered output is gitignored. New env-varying config → add a template, not a hardcoded file.
+3. **Always invoke via `task <label>:<cmd>`, never raw `eas`, `gcloud`, `npx sequelize`, `eas build`, etc.** The task wraps dotenv scoping, deps (like `mobile:config`), and `--local` defaults. If a needed command has no task, add a task for it — don't run the raw CLI.
+4. **Dev/prod parallel label pattern** — every deploy/build task defined under `dev:` must have a mirror under `prod:` that reads `.env.prod` at the include site in `Taskfile.yml`. Same task names, same shape, different env scope. Adding a dev task without the prod counterpart is a bug.
+5. **GitHub Actions workflows are `workflow_dispatch` only — never `push` / `pull_request` / `schedule`.** We stay on the free tier by running CI/deploys manually. If a workflow needs another workflow's steps, use `workflow_call`. Do not add automatic triggers.
 
 ## Architectural patterns worth knowing
 
@@ -89,8 +129,8 @@ App runtime code **must not read `.env.dev` in production**. It reads `process.e
 ## Non-obvious gotchas
 
 - **Android local build** needs JDK 17 (pinned via `apps/mobile/.java-version`) and `apps/mobile/.npmrc` with `legacy-peer-deps=true` (react/react-dom peer conflict). `expo-linking` is a required peer of `expo-router` — keep it installed.
-- **iOS local build** needs full Xcode (not just `xcode-select` CLI tools). Without full Xcode, `dev:deploy:mobile:ios:cloud` is the fallback.
-- **Local Postgres, not Cloud SQL proxy, for "local" work** — `.env` uses `:6132` and is meant for Docker Postgres on localhost. `cloud-sql-proxy` is a dev-against-cloud mode, not a local mode.
+- **iOS local build** needs full Xcode (not just `xcode-select` CLI tools).
+- **Local work uses local Docker Postgres** (`:10032`, driven by `infra/local/docker-compose.yaml`). Bootstrap a fresh machine with `task local:bootstrap` (Postgres + migrations + seed). Day-to-day: `task local:dev`.
 - **Spec number collisions** in `docs/specs/` — two specs exist at `17-*.md`, `19-*.md`, `20-*.md`, `21-*.md` (result of parallel merges). Consolidate before adding new specs at those numbers.
 - **EAS builds must be `--local` by default** — cloud queue is slow (often 20–60 min in IN_QUEUE). Cloud is a last-resort fallback.
 - **Seeded profile slugs** (dev DB): `sarah-williams`, `ramesh-kumar`, `priya-sharma`, `david-chen`, `lisa-tan`, `ahmed-hassan`. Use these for local/dev testing.

@@ -7,7 +7,7 @@ import {
   signInWithCredential,
 } from "firebase/auth";
 
-import { exchangeToken, type AuthUser } from "./api";
+import { exchangeToken, passwordLogin, type AuthUser } from "./api";
 import { firebaseConfig, googleOAuth } from "./env";
 import { setToken } from "./storage";
 
@@ -76,6 +76,21 @@ export async function completeSignIn(
   const firebaseIdToken = await userCredential.user.getIdToken();
 
   const { token, user } = await exchangeToken(firebaseIdToken);
+  await setToken(token);
+  return { token, user };
+}
+
+/**
+ * Email+password sign-in for admin-provisioned accounts. Reqsume-style:
+ * password hash lives in our own `users` table (bcrypt), Firebase is not
+ * involved. Feature-gated in the UI via EXPO_PUBLIC_FEATURE_EMAIL_LOGIN
+ * (see spec 16).
+ */
+export async function signInWithEmailPassword(
+  email: string,
+  password: string,
+): Promise<{ token: string; user: AuthUser }> {
+  const { token, user } = await passwordLogin(email, password);
   await setToken(token);
   return { token, user };
 }

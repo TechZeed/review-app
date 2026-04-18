@@ -25,6 +25,11 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
+# Committed env-specific defaults (apps/api/config/application.<APP_ENV>.env)
+# are loaded by the Node process via loadAppEnvDefaults(). We just export
+# APP_ENV so the selector picks the right file.
+export APP_ENV="$ENV"
+
 set -a
 source "$ENV_FILE"
 set +a

@@ -1,6 +1,55 @@
 version: "3"
 
+vars:
+  REPO_ROOT:
+    sh: git rev-parse --show-toplevel
+  COMPOSE: docker compose --env-file {{.REPO_ROOT}}/.env -f {{.REPO_ROOT}}/infra/local/docker-compose.yaml
+
 tasks:
+  # ─── Infra (Postgres via docker-compose) ─────────────────────────────────────
+
+  infra:up:
+    desc: Start local Postgres (docker-compose, port from .env)
+    cmd: "{{.COMPOSE}} up -d"
+
+  infra:down:
+    desc: Stop local Postgres (keeps data volume)
+    cmd: "{{.COMPOSE}} down"
+
+  infra:reset:
+    desc: Stop local Postgres + DESTROY data volume
+    cmd: "{{.COMPOSE}} down -v"
+
+  infra:ps:
+    desc: Show local infra status
+    cmd: "{{.COMPOSE}} ps"
+
+  infra:wait:
+    desc: Block until Postgres is healthy
+    cmd: |
+      echo "Waiting for Postgres to be healthy..."
+      for i in $(seq 1 30); do
+        state=$({{.COMPOSE}} ps --format json postgres 2>/dev/null | grep -o '"Health":"[^"]*"' | cut -d'"' -f4)
+        [ "$state" = "healthy" ] && echo "Postgres healthy" && exit 0
+        sleep 1
+      done
+      echo "Postgres did not become healthy in 30s" && exit 1
+
+  bootstrap:
+    desc: First-run setup — start infra, run migrations, seed demo data
+    cmds:
+      - task: infra:up
+      - task: infra:wait
+      - task: migrate
+      - task: seed
+
+  dev:
+    desc: Day-to-day — ensure infra is up, then start API dev server
+    cmds:
+      - task: infra:up
+      - task: infra:wait
+      - task: server
+
   # ─── Dev Server ──────────────────────────────────────────────────────────────
 
   server:

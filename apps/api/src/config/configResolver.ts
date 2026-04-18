@@ -1,4 +1,6 @@
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
+import { accessSync, constants as fsConstants } from "node:fs";
+import { isAbsolute, resolve } from "node:path";
 import { logger } from "./logger.js";
 
 /**
@@ -157,4 +159,85 @@ export function addSecretMapping(envKey: string, secretName: string): void {
  */
 export function clearSecretCache(): void {
   secretCache.clear();
+}
+
+/**
+ * Resolve a vault-file path from an env var. The env var's value is already
+ * the filepath — absolute on Cloud Run (via --set-secrets mount, e.g.
+ * /secrets/firebase-sa.json), relative to apps/api cwd locally (e.g.
+ * ../../infra/dev/vault/firebase-sa.json). Returns the resolved absolute path.
+ *
+ * Never hits Secret Manager — file writing is the environment's job:
+ *   - Cloud Run: `--set-secrets` mount writes before entrypoint
+ *   - GitHub Actions: `hydrate-vault` composite action writes to disk
+ *   - Local dev: `task dev:vault:pull` writes once per machine
+ *
+ * Throws if the env var is missing. The startup sanity check
+ * (`verifyVaultFiles`) is expected to catch missing files before any caller
+ * reaches this, but we still resolve defensively.
+ *
+ * See docs/specs/22-file-vault-pattern.md.
+ */
+export function resolveFilePath(envKey: string): string {
+  const raw = process.env[envKey];
+  if (!raw) {
+    throw new Error(
+      `${envKey} not set. Run 'task dev:vault:pull' locally, or check --set-secrets on Cloud Run deploy.`,
+    );
+  }
+  return isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
+}
+
+// System env vars that end in _PATH but are OS-level search path lists,
+// not vault file pointers. Skip them in verifyVaultFiles.
+const SYSTEM_PATH_VARS = new Set([
+  "PATH",
+  "LIBRARY_PATH",
+  "LD_LIBRARY_PATH",
+  "DYLD_LIBRARY_PATH",
+  "DYLD_FALLBACK_LIBRARY_PATH",
+  "MANPATH",
+  "INFOPATH",
+  "PYTHONPATH",
+  "CLASSPATH",
+  "NODE_PATH",
+  "GOPATH",
+  "CDPATH",
+  "FPATH",
+  "TYPESCRIPT_PATH",
+]);
+
+/**
+ * Startup sanity check for vault files: every env var whose key ends in _PATH
+ * must point to a readable file. Fails fast at boot rather than leaving a
+ * broken readFileSync waiting to surface in request handling.
+ *
+ * Skips OS-level path-list variables (LIBRARY_PATH, NODE_PATH, etc.) and
+ * any value containing `:` (which in *nix always indicates a multi-path
+ * list, never a single vault file).
+ */
+export function verifyVaultFiles(): void {
+  const missing: string[] = [];
+  const checked: string[] = [];
+  for (const key of Object.keys(process.env)) {
+    if (!key.endsWith("_PATH")) continue;
+    if (SYSTEM_PATH_VARS.has(key)) continue;
+    const val = process.env[key];
+    if (!val) continue;
+    if (val.includes(":") && !/^[A-Z]:\\/.test(val)) continue; // path-list, not a single file (Windows drive letters excluded)
+    const abs = isAbsolute(val) ? val : resolve(process.cwd(), val);
+    try {
+      accessSync(abs, fsConstants.R_OK);
+      checked.push(`${key}=${abs}`);
+    } catch {
+      missing.push(`${key} → ${abs}`);
+    }
+  }
+  if (missing.length) {
+    throw new Error(
+      `Vault files missing or unreadable:\n  ${missing.join("\n  ")}\n` +
+        `Run 'task dev:vault:pull' locally, or verify --set-secrets on the Cloud Run deploy.`,
+    );
+  }
+  logger.info(`Vault files verified at startup (${checked.length} checked)`);
 }
