@@ -17,9 +17,11 @@
         "releaseStatus": "draft"
       },
       "ios": {
-        "appleId": "io@deemwar.com",
         "ascAppId": "6762469762",
-        "appleTeamId": "LQY3DPEDZ9"
+        "appleTeamId": "LQY3DPEDZ9",
+        "ascApiKeyPath": "./asc-api-key.p8",
+        "ascApiKeyId": "44GKS6NTS2",
+        "ascApiIssuerId": "69a6de93-86b4-47e3-e053-5b8c7c11a4d1"
       }
     }
   }

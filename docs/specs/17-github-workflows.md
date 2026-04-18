@@ -66,17 +66,19 @@ The "always capture" on step 7 matters: when Play submit fails (e.g. service acc
 - Play service account (`eas-submit@humini-review.iam.gserviceaccount.com`) granted Release-manager (or Admin) access to the ReviewApp under Play Console → Users and permissions.
 - Tester email list created under Play Console → Internal testing → Testers.
 
-**iOS (reserved, not yet wired):**
+**iOS path (wired 2026-04-18):**
 
-EAS Submit for iOS uses an App Store Connect API key, not a Google-style SA. When we add the iOS path:
+Select `profile=ios` on the workflow dispatch; the job runs on `macos-latest`, builds an IPA via EAS, and optionally uploads to TestFlight via EAS Submit using an App Store Connect API team key.
 
-1. Generate a key under App Store Connect → Users and Access → **Integrations** (role: App Manager). Download the `.p8`.
-2. Add `ASC_API_KEY_ID` and `ASC_API_ISSUER_ID` under `##### GitHub Secrets #####` in `.env.dev`.
-3. Put the `.p8` at `infra/dev/vault/asc-api-key.p8` and declare `ASC_API_KEY_PATH=infra/dev/vault/asc-api-key.p8` under `##### GitHub Vault Files #####`.
-4. `task dev:sync:vault` pushes both — the file goes as base64, decoded by `.github/actions/hydrate-vault` at workflow start.
-5. Extend `deploy-mobile.yml` with an `ios` profile branch calling `eas build --platform ios` and `eas submit --platform ios`.
+Credentials flow through the same file-vault pattern as Play Store:
 
-TestFlight **tester** enrolment is separate (App Store Connect → My Apps → ReviewApp → TestFlight → Internal Testing).
+- `.env.dev` strings: `APPLE_ID`, `APPLE_TEAM_ID`, `ASC_APP_ID`, `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID` — all under `##### GitHub Secrets #####`.
+- `.env.dev` vault file: `ASC_API_KEY_PATH=infra/dev/vault/asc-api-key.p8` under `##### GitHub Vault Files #####`. `task dev:sync:vault` pushes the `.p8` contents as `ASC_API_KEY_B64`.
+- The workflow base64-decodes `ASC_API_KEY_B64` into `apps/mobile/asc-api-key.p8` before `eas submit` runs. `apps/mobile/eas.json`'s iOS submit block references `./asc-api-key.p8` + `ascApiKeyId` + `ascApiIssuerId` (all committed — the key IDs are harmless without the `.p8`).
+
+To rotate: regenerate a Team Key at App Store Connect → Users and Access → **Integrations → App Store Connect API → Team Keys** (role: App Manager). Replace `infra/dev/vault/asc-api-key.p8`, update `ASC_API_KEY_ID` / `ASC_API_ISSUER_ID` in `.env.dev`, run `task dev:sync:vault`. Done.
+
+TestFlight **tester** enrolment is separate (App Store Connect → My Apps → ReviewApp → TestFlight → Internal Testing). The API key doesn't manage testers — only builds.
 
 ---
 

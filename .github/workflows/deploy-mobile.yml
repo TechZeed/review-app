@@ -4,15 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: "Build profile (preview = APK for sideload, production = AAB for Play)"
+        description: "Build profile"
         required: true
         type: choice
         options:
-          - preview
-          - production
+          - preview              # Android APK, sideload
+          - production           # Android AAB, Play Internal
+          - ios                  # iOS IPA, TestFlight
         default: preview
       submit:
-        description: "Submit production AAB to Play Internal (ignored for preview)"
+        description: "Submit to store (Play Internal for production, TestFlight for ios; ignored for preview)"
         required: true
         type: boolean
         default: false
@@ -27,7 +28,7 @@ on:
         type: string
 
 concurrency:
-  group: deploy-mobile
+  group: deploy-mobile-${{ inputs.profile }}
   cancel-in-progress: false
 
 jobs:
@@ -45,8 +46,9 @@ jobs:
   build:
     name: Build ${{ inputs.profile }}
     needs: validate
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # iOS builds require a macOS runner; Android can stay on ubuntu.
+    runs-on: ${{ inputs.profile == 'ios' && 'macos-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 90
     permissions:
       contents: write  # needed to create the GitHub Release
     defaults:
@@ -64,7 +66,8 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      - name: Set up JDK 17
+      - name: Set up JDK 17 (Android only)
+        if: inputs.profile != 'ios'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -79,6 +82,7 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      # ── Builds ──────────────────────────────────────────────────
       - name: Build APK (preview, local)
         if: inputs.profile == 'preview'
         run: eas build --platform android --profile preview --local --output ./preview.apk --non-interactive
@@ -87,6 +91,11 @@ jobs:
         if: inputs.profile == 'production'
         run: eas build --platform android --profile production --local --output ./build.aab --non-interactive
 
+      - name: Build IPA (ios, local)
+        if: inputs.profile == 'ios'
+        run: eas build --platform ios --profile production --local --output ./build.ipa --non-interactive
+
+      # ── Play Store submit (Android production only) ─────────────
       - name: Hydrate Play Store service account from vault
         if: inputs.profile == 'production' && inputs.submit
         run: echo '${{ secrets.EAS_SUBMIT_SA_B64 }}' | base64 -d > google-service-account.json
@@ -95,6 +104,16 @@ jobs:
         if: inputs.profile == 'production' && inputs.submit
         run: eas submit --platform android --path ./build.aab --non-interactive
 
+      # ── TestFlight submit (iOS only) ────────────────────────────
+      - name: Hydrate App Store Connect API key from vault
+        if: inputs.profile == 'ios' && inputs.submit
+        run: echo '${{ secrets.ASC_API_KEY_B64 }}' | base64 -d > asc-api-key.p8
+
+      - name: Submit IPA to TestFlight
+        if: inputs.profile == 'ios' && inputs.submit
+        run: eas submit --platform ios --path ./build.ipa --non-interactive
+
+      # ── Artifact + release (always, even if submit failed) ──────
       - name: Compute release tag
         id: tag
         if: success() || failure()
@@ -110,6 +129,7 @@ jobs:
           path: |
             apps/mobile/preview.apk
             apps/mobile/build.aab
+            apps/mobile/build.ipa
           if-no-files-found: ignore
           retention-days: 14
 
@@ -120,17 +140,18 @@ jobs:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: Mobile ${{ inputs.profile }} — ${{ steps.tag.outputs.tag }}
           body: |
-            Android build produced by `deploy-mobile` workflow.
+            Mobile build produced by `deploy-mobile` workflow.
             Profile: `${{ inputs.profile }}`
             Commit: `${{ github.sha }}`
 
-            Testers: download the APK (preview) and install on device. Production
-            AABs are for Play Store — not installable directly.
+            Testers: APK (preview) installs by sideload. AAB is for Play Store.
+            IPA is for TestFlight upload (or Apple-managed distribution).
           files: |
             apps/mobile/preview.apk
             apps/mobile/build.aab
+            apps/mobile/build.ipa
           fail_on_unmatched_files: false
 
-      - name: Cleanup
+      - name: Cleanup secrets on runner
         if: always()
-        run: rm -f google-service-account.json build.aab preview.apk
+        run: rm -f google-service-account.json asc-api-key.p8 build.aab build.ipa preview.apk
