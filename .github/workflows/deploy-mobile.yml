@@ -118,11 +118,13 @@ jobs:
 
       - name: Compute release tag
         id: tag
+        if: success() || failure()
         run: |
           TS=$(date -u +'%Y%m%d-%H%M%S')
           echo "tag=mobile-${{ inputs.profile }}-${TS}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload artifact (always, 14d retention)
+      - name: Upload artifact (14d retention)
+        if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.tag.outputs.tag }}
@@ -133,7 +135,7 @@ jobs:
           retention-days: 14
 
       - name: Create GitHub Release
-        if: inputs.release
+        if: inputs.release && (success() || failure())
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
