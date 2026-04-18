@@ -31,18 +31,28 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
 
 // ---- Profile ----
 
+export interface QualityBreakdown {
+  expertise: number;
+  care: number;
+  delivery: number;
+  initiative: number;
+  trust: number;
+}
+
 export interface Profile {
   id: string;
   slug: string;
   name: string;
-  photo_url?: string;
-  role?: string;
-  org_name?: string;
-  industry?: string;
-  total_reviews: number;
-  verifiable_references: number;
+  headline?: string | null;
+  bio?: string | null;
+  industry?: string | null;
   visibility?: string;
-  created_at?: string;
+  qrCodeUrl?: string | null;
+  reviewCount: number;
+  qualityBreakdown?: QualityBreakdown;
+  profileUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export function fetchProfile(slug: string): Promise<Profile> {
@@ -57,20 +67,22 @@ export function fetchMyProfile(token: string): Promise<Profile> {
 
 export interface Review {
   id: string;
-  profile_id: string;
+  profileId: string;
   qualities: string[];
-  media_type?: 'text' | 'voice' | 'video';
-  text_content?: string;
-  verified_interaction?: boolean;
-  verifiable_reference?: boolean;
-  created_at: string;
+  thumbsUp?: boolean;
+  badgeTier?: 'verified_interaction' | 'verified' | 'standard' | 'low_confidence';
+  verifiable?: boolean;
+  createdAt: string;
 }
 
 export interface ReviewsResponse {
   reviews: Review[];
-  total: number;
-  page: number;
-  limit: number;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export function fetchReviews(profileId: string, page = 1, limit = 20): Promise<ReviewsResponse> {

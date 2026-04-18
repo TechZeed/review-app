@@ -8,8 +8,10 @@ const QUALITY_COLORS: Record<string, string> = {
   trust: 'bg-purple-100 text-purple-700',
 };
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr?: string): string {
+  if (!dateStr) return '';
   const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -22,14 +24,15 @@ interface ReviewCardProps {
 }
 
 export default function ReviewCard({ review }: ReviewCardProps) {
+  const dateText = formatDate(review.createdAt);
+  const isVerifiedInteraction = review.badgeTier === 'verified_interaction';
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs text-gray-500">
-          {formatDate(review.created_at)}
-        </span>
+        <span className="text-xs text-gray-500">{dateText}</span>
         <div className="flex items-center gap-2">
-          {review.verified_interaction && (
+          {isVerifiedInteraction && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full">
               <svg
                 className="w-3 h-3"
@@ -45,15 +48,9 @@ export default function ReviewCard({ review }: ReviewCardProps) {
               Verified
             </span>
           )}
-          {review.verifiable_reference && (
+          {review.verifiable && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-full">
               Reference
-            </span>
-          )}
-          {review.media_type && review.media_type !== 'text' && (
-            <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-full capitalize">
-              {review.media_type === 'voice' ? '🎙' : '🎬'}{' '}
-              {review.media_type}
             </span>
           )}
         </div>
@@ -73,12 +70,6 @@ export default function ReviewCard({ review }: ReviewCardProps) {
           );
         })}
       </div>
-
-      {review.text_content && (
-        <p className="text-sm text-gray-700 leading-relaxed">
-          "{review.text_content}"
-        </p>
-      )}
     </div>
   );
 }
