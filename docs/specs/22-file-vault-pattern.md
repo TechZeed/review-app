@@ -157,6 +157,17 @@ Reject any commit touching `infra/dev/vault/` as belt-and-braces (open question 
 6. Add `.github/actions/hydrate-vault` composite action; wire into `deploy.yml` / `deploy-mobile.yml` / `migrate.yml`.
 7. Update `CLAUDE.md` with vault pattern under "Core rules".
 
+## Status (2026-04-18 update)
+
+**Shipped:**
+- `.env.dev` carries `FIREBASE_SA_PATH=infra/dev/vault/firebase-sa.json` (GCP vault) and `EAS_SUBMIT_SA_PATH=infra/dev/vault/eas-submit-sa.json` (GitHub vault). Paths are now repo-root-relative — the `../../` prefix is gone (still stripped by `sync-vault.ts` for backwards compatibility, but don't add it to new entries).
+- API runtime (`configResolver.ts`) resolves `*_PATH` vars against **REPO_ROOT** (derived from `import.meta.url`), not `process.cwd()`. So the same path string works whether the process starts from `apps/api/`, repo root, or a container where `/app` is cwd.
+- `sync-vault.ts` lives at `infra/scripts/sync-vault.ts` (no longer under `infra/dev/`) and uses a 6-wide async pool for `gh`/`gcloud` writes — wall time for a full `.env.dev` push is ~35s (down from ~60s sequential).
+- `EAS_SUBMIT_SA_B64` is decoded at runtime in `.github/workflows/deploy-mobile.yml` to produce `google-service-account.json`, replacing the legacy standalone `GOOGLE_PLAY_SA_KEY` secret.
+
+**Still pending:**
+- `.github/actions/hydrate-vault` composite action (spec called for it; currently each workflow that needs a vault file decodes inline — works but duplicates one-liners across workflows). Add when a second `_B64` secret joins (ASC `.p8` for iOS is the likely trigger).
+
 ## References
 
 - Compared against `/Users/muthuishere/muthu/gitworkspace/reqsume-workspace/reqsume/apps/api/src/storage/` (S3 + AES-256-GCM + download-at-startup). That pattern is correct for Hetzner (no managed SM); here it's ~400 lines to replace a single `--set-secrets` flag. Take the mental model (`GetAsFile` abstraction, startup sanity check, vault folder discipline); skip the crypto + S3 download machinery.

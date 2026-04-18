@@ -178,7 +178,7 @@ Data safety, app category, and store listing are **not required for internal tes
 | GCP_PROJECT_ID | Set (`humini-review`) |
 | GCP_SA_KEY | Set (review-deployer SA key) |
 | CLOUDSQL_CONNECTION_NAME | Set |
-| GOOGLE_PLAY_SA_KEY | Set (eas-submit SA key) |
+| EAS_SUBMIT_SA_B64 | Set (vault-managed; base64 of `infra/dev/vault/eas-submit-sa.json`) — replaces legacy GOOGLE_PLAY_SA_KEY |
 | EXPO_TOKEN | Set (from ~/.zshrc) |
 
 ---
@@ -187,10 +187,10 @@ Data safety, app category, and store listing are **not required for internal tes
 
 | Workflow | Trigger | Inputs | Status |
 |---|---|---|---|
-| `ci.yml` | Push to main + PRs | — | Running, failing (test issues) |
-| `deploy-staging.yml` | Manual | service: api/web/ui/all | **Working** — last run succeeded |
-| `deploy-prod.yml` | Manual | service: api/web/ui/all | Not tested yet |
-| `deploy-mobile.yml` | Manual | profile: preview/production, build_mode: local/cloud, submit: bool | Ready — all secrets set |
+| `ci.yml` | Manual (`workflow_dispatch` / `workflow_call`) | — | Manual-only (no push/PR triggers — free-tier minutes rule) |
+| `deploy.yml` | Manual | service: api/web/ui/all | **Working** — last Cloud Run deploy green |
+| `migrate.yml` | Manual | env | **Working** |
+| `deploy-mobile.yml` | Manual | profile: preview/production, submit: bool, release: bool | **Working** — builds AAB on runner (JDK 17), decodes EAS_SUBMIT_SA_B64 for Play submit, attaches to GitHub Release |
 
 ### GitHub Secrets
 
@@ -199,7 +199,7 @@ Data safety, app category, and store listing are **not required for internal tes
 | GCP_PROJECT_ID | Set (`humini-review`) |
 | GCP_SA_KEY | Set (review-deployer SA key) |
 | CLOUDSQL_CONNECTION_NAME | Set |
-| GOOGLE_PLAY_SA_KEY | Set (eas-submit SA key) |
+| EAS_SUBMIT_SA_B64 | Set (vault-managed; base64 of `infra/dev/vault/eas-submit-sa.json`) — replaces legacy GOOGLE_PLAY_SA_KEY |
 | EXPO_TOKEN | Set |
 
 ---

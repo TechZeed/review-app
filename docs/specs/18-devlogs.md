@@ -37,7 +37,7 @@ A Bun script that streams live logs from any Cloud Run dev service to both the t
 
 ### `task dev:logs`
 
-Live streaming task added to `apps/api/Taskfile.dev.yml`.
+Live streaming task added to `Taskfile.dev.yml` (repo root).
 
 ```
 task dev:logs                        # tail review-api-dev
@@ -62,7 +62,7 @@ All GCP config is read from `.env.dev` — never hardcoded in the script or Task
 | `GCP_PROJECT_ID` | `humini-review` | `.env.dev` |
 | `GCP_REGION` | `asia-southeast1` | `.env.dev` |
 
-`Taskfile.dev.yml` loads `.env.dev` via `dotenv: ['../../.env.dev']` at the file level, so all tasks (not just logs) pick up region and project from the same source.
+`Taskfile.yml` (repo root) loads `.env.dev` at the include site — `dotenv: ['.env.dev']` under the `dev:` include — so all tasks under `dev:*` pick up region and project from the same source. Dotenv never lives inside the included file (spec 23 / feedback memory: Taskfile include-site dotenv).
 
 The script exits with a clear error if either var is missing:
 ```
@@ -76,5 +76,5 @@ Missing GCP_PROJECT_ID or GCP_REGION — load .env.dev first
 | File | Change |
 |---|---|
 | `infra/scripts/devlogs.ts` | New — Bun log streaming script |
-| `apps/api/Taskfile.dev.yml` | Added `dotenv`, `REPO_ROOT` var, `logs:` task, `logs:ui` task; replaced hardcoded region/project with env vars |
+| `Taskfile.dev.yml` (repo root) | Added `REPO_ROOT` var, `logs:` task, `logs:ui` task; replaced hardcoded region/project with env vars. Dotenv scoping happens at the include site in `Taskfile.yml`. |
 | `.env.dev` | Added `GCP_REGION=asia-southeast1` |
