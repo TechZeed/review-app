@@ -4,23 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: "Build profile"
+        description: "Build profile (preview = APK for sideload, production = AAB for Play)"
         required: true
         type: choice
         options:
           - preview
           - production
         default: preview
-      build_mode:
-        description: "Build mode"
-        required: true
-        type: choice
-        options:
-          - local
-          - cloud
-        default: local
       submit:
-        description: "Submit to Play Store after build?"
+        description: "Submit production AAB to Play Internal (ignored for preview)"
+        required: true
+        type: boolean
+        default: false
+      release:
+        description: "Attach the artifact to a GitHub Release for tester download"
         required: true
         type: boolean
         default: true
@@ -45,11 +42,13 @@ jobs:
             exit 1
           fi
 
-  build-and-submit:
-    name: Build & Submit (${{ inputs.profile }}, ${{ inputs.build_mode }})
+  build:
+    name: Build ${{ inputs.profile }}
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    permissions:
+      contents: write  # needed to create the GitHub Release
     defaults:
       run:
         working-directory: apps/mobile
@@ -63,8 +62,9 @@ jobs:
           cache: npm
           cache-dependency-path: apps/mobile/package-lock.json
 
-      - name: Set up JDK 17 (for local builds)
-        if: inputs.build_mode == 'local'
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -73,32 +73,83 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Render app.json + eas.json from templates
+        working-directory: ${{ github.workspace }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+          EXPO_OWNER: ${{ secrets.EXPO_OWNER }}
+          EXPO_PROJECT_ID: ${{ secrets.EXPO_PROJECT_ID }}
+          GOOGLE_OAUTH_ANDROID_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_ANDROID_CLIENT_ID }}
+          GOOGLE_OAUTH_IOS_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_IOS_CLIENT_ID }}
+          GOOGLE_OAUTH_WEB_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_WEB_CLIENT_ID }}
+          MOBILE_API_URL: ${{ secrets.MOBILE_API_URL }}
+          MOBILE_DASHBOARD_URL: ${{ secrets.MOBILE_DASHBOARD_URL }}
+          MOBILE_FIREBASE_API_KEY: ${{ secrets.MOBILE_FIREBASE_API_KEY }}
+          MOBILE_FIREBASE_APP_ID: ${{ secrets.MOBILE_FIREBASE_APP_ID }}
+          MOBILE_FIREBASE_AUTH_DOMAIN: ${{ secrets.MOBILE_FIREBASE_AUTH_DOMAIN }}
+          MOBILE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.MOBILE_FIREBASE_MESSAGING_SENDER_ID }}
+          MOBILE_FIREBASE_PROJECT_ID: ${{ secrets.MOBILE_FIREBASE_PROJECT_ID }}
+          MOBILE_WEB_URL: ${{ secrets.MOBILE_WEB_URL }}
+        run: bun run infra/dev/apply-mobile-config.ts
+
       - name: Setup EAS
         uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Build Android (local)
-        if: inputs.build_mode == 'local'
-        run: eas build --platform android --profile ${{ inputs.profile }} --local --output ./build.aab --non-interactive
+      - name: Build APK (preview, local)
+        if: inputs.profile == 'preview'
+        run: eas build --platform android --profile preview --local --output ./preview.apk --non-interactive
 
-      - name: Build Android (cloud)
-        if: inputs.build_mode == 'cloud'
-        run: eas build --platform android --profile ${{ inputs.profile }} --non-interactive
+      - name: Build AAB (production, local)
+        if: inputs.profile == 'production'
+        run: eas build --platform android --profile production --local --output ./build.aab --non-interactive
 
       - name: Write Google Service Account key
-        if: inputs.submit
+        if: inputs.profile == 'production' && inputs.submit
         run: echo '${{ secrets.GOOGLE_PLAY_SA_KEY }}' > google-service-account.json
 
-      - name: Submit to Play Store (local build)
-        if: inputs.submit && inputs.build_mode == 'local'
+      - name: Submit AAB to Play Internal
+        if: inputs.profile == 'production' && inputs.submit
         run: eas submit --platform android --path ./build.aab --non-interactive
 
-      - name: Submit to Play Store (cloud build)
-        if: inputs.submit && inputs.build_mode == 'cloud'
-        run: eas submit --platform android --latest --non-interactive
+      - name: Compute release tag
+        id: tag
+        run: |
+          TS=$(date -u +'%Y%m%d-%H%M%S')
+          echo "tag=mobile-${{ inputs.profile }}-${TS}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact (always, 14d retention)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.tag.outputs.tag }}
+          path: |
+            apps/mobile/preview.apk
+            apps/mobile/build.aab
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Create GitHub Release
+        if: inputs.release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Mobile ${{ inputs.profile }} — ${{ steps.tag.outputs.tag }}
+          body: |
+            Android build produced by `deploy-mobile` workflow.
+            Profile: `${{ inputs.profile }}`
+            Commit: `${{ github.sha }}`
+
+            Testers: download the APK (preview) and install on device. Production
+            AABs are for Play Store — not installable directly.
+          files: |
+            apps/mobile/preview.apk
+            apps/mobile/build.aab
+          fail_on_unmatched_files: false
 
       - name: Cleanup
         if: always()
-        run: rm -f google-service-account.json build.aab
+        run: rm -f google-service-account.json build.aab preview.apk
