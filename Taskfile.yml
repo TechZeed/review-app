@@ -21,3 +21,10 @@ includes:
   # prod:
   #   taskfile: Taskfile.prod.yml
   #   dotenv: [".env.prod"]
+
+tasks:
+  # Meta utilities (no dotenv scope — must work in a blank worktree).
+
+  worktree:link:
+    desc: Symlink gitignored shared files (.env.*, infra/dev/vault) from primary worktree into current worktree
+    cmd: bash infra/scripts/worktree-link.sh
