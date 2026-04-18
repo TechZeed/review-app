@@ -45,6 +45,9 @@ jobs:
     # iepapp/.github/workflows/deploy-api.yml.
     env:
       # ── GCP ────────────────────────────────────────────────
+      # Skip Secret Manager upserts (CI SA only has accessor role).
+      # Run `task dev:sync:vault` from a maintainer's machine to populate.
+      SKIP_SECRET_SYNC: "true"
       GCP_PROJECT_ID:                    ${{ secrets.GCP_PROJECT_ID }}
       GCP_REGION:                        asia-southeast1
       CLOUDSQL_CONNECTION_NAME:          ${{ secrets.CLOUDSQL_CONNECTION_NAME }}

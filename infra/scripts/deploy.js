@@ -257,6 +257,16 @@ function upsertSecret(secretName, value) {
 }
 
 function syncSecrets(envMap) {
+  // In CI, the deployer SA typically only has `secretmanager.secretAccessor`
+  // — enough to reference secrets from Cloud Run but not to create/update
+  // them. Set SKIP_SECRET_SYNC=true in the workflow to skip upserts and
+  // assume sync-vault.ts (run from a human's machine with admin perms)
+  // has already populated Secret Manager.
+  if (process.env.SKIP_SECRET_SYNC === 'true') {
+    console.log('\n>>> Skip Secret Manager sync (SKIP_SECRET_SYNC=true)');
+    requireKeys(envMap, Object.keys(SECRET_MAPPING), 'secrets');
+    return;
+  }
   console.log(`\n>>> Sync secrets to GCP Secret Manager (project=${GCP_PROJECT})`);
   requireKeys(envMap, Object.keys(SECRET_MAPPING), 'secrets');
   for (const [envVar, secretName] of Object.entries(SECRET_MAPPING)) {
