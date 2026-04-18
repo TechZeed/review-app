@@ -234,8 +234,9 @@ export function ghSecretNameForVaultKey(key: string): string {
 }
 
 function resolveVaultPath(valuePath: string): string {
-  // Values in .env.dev are written as apps/api-relative (../../infra/dev/...).
-  // Resolve against REPO_ROOT to get the absolute path regardless of caller cwd.
+  // Values in .env.dev are repo-root-relative (e.g. infra/dev/vault/foo.json).
+  // Legacy entries may still carry a `../../` prefix (apps/api-relative) —
+  // strip it so both resolve to the same absolute path.
   const stripped = valuePath.startsWith("../../")
     ? valuePath.slice("../../".length)
     : valuePath;

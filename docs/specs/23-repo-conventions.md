@@ -129,8 +129,7 @@ Keep it short — three sections, skip any that don't apply:
 Run locally — we don't gate on CI:
 
 ```bash
-cd apps/api
-task local:build    # tsc --noEmit across the surface
+task local:build    # tsc --noEmit across the surface (run from anywhere in repo)
 task local:test     # vitest
 ```
 

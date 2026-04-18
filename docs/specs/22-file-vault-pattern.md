@@ -100,7 +100,7 @@ During `resolveAllSecrets()` at boot, iterate every env key ending in `_PATH`, r
 - **Push (`task dev:sync:vault`)**: for each `*_PATH` entry, read the file bytes, push to the matching store.
 - **Pull (`task dev:vault:pull`)**: for each `##### GCP Vault Files #####` entry, fetch the secret from GCP Secret Manager, write to the local path. Refuses to overwrite existing files without `--force`. GitHub vault files cannot be pulled (GH secrets are write-only).
 
-### `deploy.js` changes
+### `infra/scripts/deploy.js` changes
 
 When deploying an API service, scan `.env.dev` for the `##### GCP Vault Files #####` section. For each entry:
 
@@ -145,7 +145,7 @@ Reject any commit touching `infra/dev/vault/` as belt-and-braces (open question 
 3. Move `GCP_SA_KEY_FILE=/tmp/review-deployer-key.json` → `GCP_DEPLOYER_SA_PATH=infra/dev/vault/gcp-deployer-sa.json` under `##### GitHub Vault Files #####`. Copy the key file into place.
 4. Delete stray `~/Downloads/google-services*.json`, `~/Downloads/GoogleService-Info.plist` (reference-only, not runtime).
 5. `task dev:sync:vault` → pushes file contents to GCP SM + GitHub Secrets.
-6. Update `deploy.js` to emit `--set-secrets` for vault entries on next API deploy.
+6. Update `infra/scripts/deploy.js` to emit `--set-secrets` for vault entries on next API deploy.
 
 ## Implementation order
 
@@ -153,7 +153,7 @@ Reject any commit touching `infra/dev/vault/` as belt-and-braces (open question 
 2. Add `dev:vault:pull` task + the pull logic in `sync-vault.ts`.
 3. Move existing file-secrets to `infra/dev/vault/` (migration steps above).
 4. Add `resolveFilePath` + startup accessSync to `apps/api/src/config/configResolver.ts`.
-5. Update `deploy.js` to emit `--set-secrets` flags.
+5. Update `infra/scripts/deploy.js` to emit `--set-secrets` flags.
 6. Add `.github/actions/hydrate-vault` composite action; wire into `deploy.yml` / `deploy-mobile.yml` / `migrate.yml`.
 7. Update `CLAUDE.md` with vault pattern under "Core rules".
 

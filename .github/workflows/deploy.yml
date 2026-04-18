@@ -68,7 +68,7 @@ jobs:
         run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
 
       - name: Deploy
-        run: node deploy.js ${{ inputs.service }} dev
+        run: node infra/scripts/deploy.js ${{ inputs.service }} dev
 
       - name: Smoke test (API)
         if: inputs.service == 'api' || inputs.service == 'all'

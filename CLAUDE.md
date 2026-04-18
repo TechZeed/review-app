@@ -12,18 +12,18 @@ Portable individual-owned review/reputation platform. Customers scan a QR code, 
 - `apps/web/` — React 19 + Vite + Tailwind. Public review submission flow (QR → rate). Route `/r/:slug`.
 - `apps/ui/` — React 19 + Vite + React Query + Firebase Web SDK + Tailwind. Logged-in dashboard for reviewees + admins. Has PWA manifest for install-to-home-screen.
 - `apps/mobile/` — Expo 54 + Expo Router + React Native + Firebase. Reviewee daily loop (sign-in, profile, reviews, share QR). Deep link scheme: `reviewapp://`. Bundle: `sg.reviewapp.app`.
-- `deploy.js` — Node orchestrator. Deploys any app (or all) to Cloud Run, wires `--set-env-vars` + `--set-secrets`.
+- `infra/scripts/deploy.js` — Node orchestrator. Deploys any app (or all) to Cloud Run, wires `--set-env-vars` + `--set-secrets`.
+- `infra/scripts/run.sh` — wrapper for API dev-server/migrate/seed/psql/test/build. Called by the Taskfile; run directly only in emergencies.
 - `docs/prd/` — what we're building and why. `docs/specs/` — how. `docs/deployment-guide.md` — infra.
-- `infra/dev/` — local dev tooling (scripts called from Taskfile).
+- `infra/dev/` — other dev tooling (sync-vault, apply-mobile-config, etc., all invoked via Taskfile).
 
 ## Commands
 
 ### Taskfile is the primary interface
 
-Taskfiles live under `apps/api/` (not repo root). Always run from there:
+Taskfiles live at the **repo root** (`Taskfile.yml` + `Taskfile.{local,dev,test}.yml`). Run from anywhere inside the repo:
 
 ```bash
-cd apps/api
 task <label>:<task>
 ```
 
@@ -43,7 +43,7 @@ Key tasks:
 - `local:bootstrap` — first-run setup: `infra:up` + wait-healthy + `migrate` + `seed`
 - `local:dev` — day-to-day: ensure infra up, start API dev server
 - `local:infra:up | down | reset | ps | wait` — manage the local docker-compose stack
-- `local:server | migrate | seed | psql | test | build` — individual ops (run via `./run.sh local …`)
+- `local:server | migrate | seed | psql | test | build` — individual ops (thin wrappers over `infra/scripts/run.sh local …`)
 - `local:stripe:listen` — forward Stripe webhooks to local API
 
 **Dev** (deploys to GCP, reads `.env.dev`):
@@ -61,7 +61,7 @@ Key tasks:
 
 _Also available but rarely needed: `dev:startproxy` (Cloud SQL Auth Proxy on `:6199`), `dev:migrate`, `dev:seed`, `dev:deploy:mobile:*:cloud` (slow EAS cloud fallback). Normal dev work uses `local:*` against Docker Postgres._
 
-**Single vitest file**: `cd apps/api && npx vitest run path/to/file.test.ts`.
+**Single vitest file**: `cd apps/api && npx vitest run path/to/file.test.ts` (vitest resolves the test path relative to cwd, so stay in `apps/api`).
 
 ## `.env.dev` — source of truth for secrets & overrides
 
@@ -84,7 +84,7 @@ The API has two env layers, loaded in this precedence:
 1. **`apps/api/config/application.<APP_ENV>.env`** — committed, non-secret defaults (log level, feature flags, tunables). Ships with the code. Loaded at startup by `loadAppEnvDefaults()` via dotenv `override:false`.
 2. **`.env.<env>` at repo root** (gitignored) locally, OR Cloud Run `--set-env-vars` / `--set-secrets` in prod — **always wins**. Holds secrets, machine-specific values, and any explicit override.
 
-Selector is `APP_ENV` (values: `local | dev | test | prod`). Exported by `run.sh` (from its `$ENV` arg), by `deploy.js` (derived from the deploy env), and by `Taskfile.local.yml` indirectly via run.sh. Falls back to `NODE_ENV` mapping if unset.
+Selector is `APP_ENV` (values: `local | dev | test | prod`). Exported by `infra/scripts/run.sh` (from its `$ENV` arg), by `infra/scripts/deploy.js` (derived from the deploy env), and by `Taskfile.local.yml` indirectly via run.sh. Falls back to `NODE_ENV` mapping if unset.
 
 **Rules:**
 - Never put secrets or URLs that differ between tenants/projects into `application.*.env` — those belong in `.env.*` (gitignored) or GCP Secret Manager.
@@ -95,7 +95,7 @@ Selector is `APP_ENV` (values: `local | dev | test | prod`). Exported by `run.sh
 
 Binary/JSON credentials (service accounts, signing keys) live in `infra/dev/vault/` — gitignored, never committed. Paths are declared in `.env.dev` under two new sections:
 
-- `##### GCP Vault Files #####` — contents pushed to GCP Secret Manager by `task dev:sync:vault`. Cloud Run mounts each as a file at `/secrets/<basename>` via `--set-secrets` (emitted by `deploy.js`). App reads `process.env[KEY_PATH]` — which locally is `../../infra/dev/vault/…` and on Cloud Run is `/secrets/…`.
+- `##### GCP Vault Files #####` — contents pushed to GCP Secret Manager by `task dev:sync:vault`. Cloud Run mounts each as a file at `/secrets/<basename>` via `--set-secrets` (emitted by `infra/scripts/deploy.js`). App reads `process.env[KEY_PATH]` — locally a repo-root-relative path like `infra/dev/vault/firebase-sa.json` (resolved against REPO_ROOT inside the API), on Cloud Run an absolute `/secrets/…`.
 - `##### GitHub Vault Files #####` — contents pushed to GitHub Secrets as base64. Decoded by `.github/actions/hydrate-vault` as the first step of any workflow that needs them.
 
 **The `_PATH` suffix is load-bearing.** Keys must end in `_PATH` — `sync-vault.ts` uses it to detect file entries, and the API's startup `verifyVaultFiles()` sanity-check iterates every `*_PATH` env key and fails boot if any file is missing.

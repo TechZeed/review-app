@@ -58,7 +58,7 @@ The "always capture" on step 7 matters: when Play submit fails (e.g. service acc
 - `APPLE_ID`, `APPLE_TEAM_ID`, `ASC_APP_ID` (reserved for iOS — see below)
 - `MOBILE_FIREBASE_*`, `MOBILE_API_URL`, `MOBILE_DASHBOARD_URL`, `MOBILE_WEB_URL`
 - `GOOGLE_OAUTH_WEB_CLIENT_ID`, `GOOGLE_OAUTH_ANDROID_CLIENT_ID`, `GOOGLE_OAUTH_IOS_CLIENT_ID`
-- `GOOGLE_PLAY_SA_KEY` (JSON for a service account with Release-manager access on the app)
+- `EAS_SUBMIT_SA_B64` — base64 of the Play Store submit SA JSON, pushed by `task dev:sync:vault` from the `##### GitHub Vault Files #####` entry `EAS_SUBMIT_SA_PATH=infra/dev/vault/eas-submit-sa.json`. The workflow decodes it to `google-service-account.json` at runtime. (The legacy `GOOGLE_PLAY_SA_KEY` secret is obsolete — superseded by this vault-managed key.)
 
 **Prerequisites that live outside the workflow:**
 

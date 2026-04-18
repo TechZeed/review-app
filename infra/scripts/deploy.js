@@ -19,6 +19,11 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+// Script lives at infra/scripts/; repo root is two levels up. Everything
+// below (.env files, app dirs, deploy-env-vars tempfile, vault paths)
+// resolves against ROOT_DIR — never __dirname, never process.cwd().
+const ROOT_DIR = path.resolve(__dirname, '..', '..');
+
 // ---------------------------------------------------------------------------
 // Fixed infra identifiers (not config — these name the infra itself)
 // ---------------------------------------------------------------------------
@@ -78,7 +83,7 @@ const FORCED_ENV = {
 function run(cmd, label) {
   console.log(`\n>>> ${label || cmd}`);
   try {
-    execSync(cmd, { stdio: 'inherit', cwd: __dirname });
+    execSync(cmd, { stdio: 'inherit', cwd: ROOT_DIR });
   } catch (err) {
     console.error(`\nFailed: ${label || cmd}`);
     process.exit(1);
@@ -101,7 +106,7 @@ const SECTION_HEADER_RE =
   /^#+\s*#{3,}\s*(GCP Vault Files|GitHub Vault Files|GCP Secrets|GitHub Secrets|Both|Local)\s*#{3,}/i;
 
 function loadEnvFile(env) {
-  const filePath = path.join(__dirname, `.env.${env}`);
+  const filePath = path.join(ROOT_DIR, `.env.${env}`);
   if (!fs.existsSync(filePath)) {
     console.error(`Missing env file: ${filePath}`);
     process.exit(1);
@@ -137,7 +142,7 @@ function loadEnvFile(env) {
 
     if (section === 'gcp_vault' && key.endsWith('_PATH')) {
       const stripped = value.startsWith('../../') ? value.slice(6) : value;
-      gcpVaultFiles[key] = path.resolve(__dirname, stripped);
+      gcpVaultFiles[key] = path.resolve(ROOT_DIR, stripped);
     }
   }
   result.__gcpVaultFiles = gcpVaultFiles;
@@ -233,7 +238,7 @@ function syncSecrets(envMap) {
         { stdio: 'inherit' },
       );
     }
-    console.log(`  [update] ${secretName} (from ${path.relative(__dirname, localPath)})`);
+    console.log(`  [update] ${secretName} (from ${path.relative(ROOT_DIR, localPath)})`);
     execSync(
       `gcloud secrets versions add ${secretName} --data-file=- --project=${GCP_PROJECT}`,
       { input: bytes, stdio: ['pipe', 'inherit', 'inherit'] },
@@ -324,7 +329,7 @@ function writeEnvVarsFile(envPairs) {
   const lines = Object.entries(envPairs).map(
     ([k, v]) => `${k}: ${JSON.stringify(String(v))}`
   );
-  const filePath = path.join(__dirname, `.deploy-env-vars.${process.pid}.yaml`);
+  const filePath = path.join(ROOT_DIR, `.deploy-env-vars.${process.pid}.yaml`);
   fs.writeFileSync(filePath, lines.join('\n') + '\n');
   return filePath;
 }

@@ -54,33 +54,33 @@ tasks:
 
   server:
     desc: Start API dev server
-    cmd: ./run.sh local server
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh local server"
 
   # ─── Database ────────────────────────────────────────────────────────────────
 
   migrate:
     desc: Run database migrations
-    cmd: ./run.sh local migrate
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh local migrate"
 
   migrate:down:
     desc: Rollback last migration
-    cmd: ./run.sh local migrate:down
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh local migrate:down"
 
   migrate:status:
     desc: Show migration status
-    cmd: ./run.sh local migrate:status
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh local migrate:status"
 
   seed:
     desc: Seed demo data
-    cmd: ./run.sh local seed
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh local seed"
 
   seed:down:
     desc: Remove seed data
-    cmd: ./run.sh local seed:down
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh local seed:down"
 
   psql:
     desc: Connect to local Postgres
-    cmd: ./run.sh local psql
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh local psql"
 
   # ─── Stripe ──────────────────────────────────────────────────────────────────
 
@@ -92,8 +92,8 @@ tasks:
 
   test:
     desc: Run unit tests (integration suite lives in Taskfile.test.yml — use `task test:integration`)
-    cmd: ./run.sh local test
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh local test"
 
   build:
     desc: TypeScript build check
-    cmd: ./run.sh local build
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh local build"

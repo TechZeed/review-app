@@ -108,9 +108,9 @@ jobs:
         if: inputs.profile == 'production'
         run: eas build --platform android --profile production --local --output ./build.aab --non-interactive
 
-      - name: Write Google Service Account key
+      - name: Hydrate Play Store service account from vault
         if: inputs.profile == 'production' && inputs.submit
-        run: echo '${{ secrets.GOOGLE_PLAY_SA_KEY }}' > google-service-account.json
+        run: echo '${{ secrets.EAS_SUBMIT_SA_B64 }}' | base64 -d > google-service-account.json
 
       - name: Submit AAB to Play Internal
         if: inputs.profile == 'production' && inputs.submit

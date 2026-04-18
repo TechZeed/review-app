@@ -18,47 +18,47 @@ tasks:
 
   psql:
     desc: Connect to dev Cloud SQL via proxy
-    cmd: ./run.sh dev psql
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh dev psql"
 
   # ─── Database ────────────────────────────────────────────────────────────────
 
   migrate:
     desc: Run migrations on dev Cloud SQL
-    cmd: ./run.sh dev migrate
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh dev migrate"
 
   migrate:down:
     desc: Rollback last migration on dev Cloud SQL
-    cmd: ./run.sh dev migrate:down
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh dev migrate:down"
 
   migrate:status:
     desc: Show migration status on dev Cloud SQL
-    cmd: ./run.sh dev migrate:status
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh dev migrate:status"
 
   seed:
     desc: Seed demo data on dev Cloud SQL
-    cmd: ./run.sh dev seed
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh dev seed"
 
   seed:down:
     desc: Remove seed data from dev Cloud SQL
-    cmd: ./run.sh dev seed:down
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh dev seed:down"
 
   # ─── Deploy ──────────────────────────────────────────────────────────────────
 
   deploy:api:
     desc: Deploy API to Cloud Run dev
-    cmd: node {{.REPO_ROOT}}/deploy.js api dev
+    cmd: node {{.REPO_ROOT}}/infra/scripts/deploy.js api dev
 
   deploy:web:
     desc: Deploy Web to Cloud Run dev
-    cmd: node {{.REPO_ROOT}}/deploy.js web dev
+    cmd: node {{.REPO_ROOT}}/infra/scripts/deploy.js web dev
 
   deploy:ui:
     desc: Deploy UI to Cloud Run dev
-    cmd: node {{.REPO_ROOT}}/deploy.js ui dev
+    cmd: node {{.REPO_ROOT}}/infra/scripts/deploy.js ui dev
 
   deploy:all:
     desc: Deploy all services to Cloud Run dev
-    cmd: node {{.REPO_ROOT}}/deploy.js all dev
+    cmd: node {{.REPO_ROOT}}/infra/scripts/deploy.js all dev
 
   # ─── Mobile ──────────────────────────────────────────────────────────────────
 

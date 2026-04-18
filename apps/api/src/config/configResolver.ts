@@ -1,7 +1,15 @@
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import { accessSync, constants as fsConstants } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { dirname, isAbsolute, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { logger } from "./logger.js";
+
+// Repo root, derived from this file's location (apps/api/src/config/…).
+// Relative *_PATH values in .env.* are resolved against this — never cwd —
+// so the path means the same thing regardless of where the process was
+// started from. Cloud Run values are absolute (/secrets/<basename>), so
+// REPO_ROOT is only used for local dev.
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 /**
  * ConfigResolver — resolves configuration values from:
@@ -164,8 +172,8 @@ export function clearSecretCache(): void {
 /**
  * Resolve a vault-file path from an env var. The env var's value is already
  * the filepath — absolute on Cloud Run (via --set-secrets mount, e.g.
- * /secrets/firebase-sa.json), relative to apps/api cwd locally (e.g.
- * ../../infra/dev/vault/firebase-sa.json). Returns the resolved absolute path.
+ * /secrets/firebase-sa.json), or repo-root-relative locally (e.g.
+ * infra/dev/vault/firebase-sa.json). Returns the resolved absolute path.
  *
  * Never hits Secret Manager — file writing is the environment's job:
  *   - Cloud Run: `--set-secrets` mount writes before entrypoint
@@ -185,7 +193,7 @@ export function resolveFilePath(envKey: string): string {
       `${envKey} not set. Run 'task dev:vault:pull' locally, or check --set-secrets on Cloud Run deploy.`,
     );
   }
-  return isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
+  return isAbsolute(raw) ? raw : resolve(REPO_ROOT, raw);
 }
 
 // System env vars that end in _PATH but are OS-level search path lists,
@@ -225,7 +233,7 @@ export function verifyVaultFiles(): void {
     const val = process.env[key];
     if (!val) continue;
     if (val.includes(":") && !/^[A-Z]:\\/.test(val)) continue; // path-list, not a single file (Windows drive letters excluded)
-    const abs = isAbsolute(val) ? val : resolve(process.cwd(), val);
+    const abs = isAbsolute(val) ? val : resolve(REPO_ROOT, val);
     try {
       accessSync(abs, fsConstants.R_OK);
       checked.push(`${key}=${abs}`);
