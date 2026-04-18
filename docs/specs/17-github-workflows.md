@@ -2,155 +2,107 @@
 
 **Project:** ReviewApp
 **Repo:** TechZeed/review-app
-**Date:** 2026-04-16
+**Date:** 2026-04-16 (rewritten 2026-04-18 — manual-only + mobile CI pipeline)
+
+---
+
+## Rule zero — manual-only
+
+Every workflow triggers on `workflow_dispatch` (or `workflow_call`) **only**. Never `push`, `pull_request`, or `schedule`. This keeps us on the GitHub free tier — we pay for minutes only when a human deliberately runs something. PRs still get local checks via `task local:test` / `task local:build`; we do not gate merges on a CI run.
+
+If you find yourself adding `on: push:` or `on: pull_request:`, stop — restructure as a reusable `workflow_call` pulled in by a dispatch entry point.
 
 ---
 
 ## Workflows
 
-| Workflow | File | Trigger | Confirmation |
+| File | Purpose | Trigger | Confirmation input |
 |---|---|---|---|
-| **CI** | `ci.yml` | Push to main + PRs | — |
-| **Deploy** | `deploy.yml` | Manual | Type `deploy` |
-| **Migrate** | `migrate.yml` | Manual | Type `migrate` |
-| **Deploy Mobile** | `deploy-mobile.yml` | Manual | Type `deploy-mobile` |
+| `ci.yml` | Lint/typecheck/test (called by others or run manually) | `workflow_dispatch`, `workflow_call` | — |
+| `deploy.yml` | Cloud Run deploy (api / web / ui / all) | `workflow_dispatch` | type `deploy` |
+| `migrate.yml` | Run DB migrations against dev/prod | `workflow_dispatch` | type `migrate` |
+| `deploy-mobile.yml` | Android build + Play submit + GH Release | `workflow_dispatch` | type `deploy-mobile` |
+
+All confirmation inputs are a free-text field that must match a magic string — a guardrail, not security.
 
 ---
 
-## 1. CI (`ci.yml`)
+## `deploy-mobile.yml` — the mobile pipeline
 
-**Trigger:** Push to main, PRs to main
-
-**Jobs:**
-- Lint & typecheck (`tsc --noEmit`)
-- Unit tests (vitest + coverage)
-- Integration tests (Postgres service container)
-- Docker build check
-
----
-
-## 2. Deploy (`deploy.yml`)
-
-**Trigger:** Manual (`workflow_dispatch`)
+This is the workflow we rely on instead of local EAS builds. Local builds broke for three reasons we kept hitting: stale rendered `app.json`, `JAVA_HOME` pointing at JDK 25 instead of 17, and missing TTY when invoking `eas` from wrappers. The runner has none of those problems.
 
 **Inputs:**
-| Input | Options | Default |
+
+| Input | Values | Meaning |
 |---|---|---|
-| service | api / web / ui / all | api |
-| confirm | Type `deploy` | — |
+| `profile` | `preview` \| `production` | preview = APK for sideload; production = AAB for Play |
+| `submit` | bool | Submit production AAB to Play Internal via EAS Submit |
+| `release` | bool | Attach artifact to a GitHub Release tagged `mobile-<profile>-<timestamp>` |
+| `confirm` | `deploy-mobile` | Guardrail |
 
-**What it does:**
-1. Validates confirmation
-2. Authenticates with GCP (service account key)
-3. Configures Docker for Artifact Registry
-4. Runs `node deploy.js <service> dev`
-5. Smoke test (API health + qualities endpoint)
+**Pipeline:**
 
-**Deploys to:** Cloud Run dev services → custom domains (teczeed.com)
+1. Set up Node 20 + Bun + JDK 17 (Temurin) on `ubuntu-latest`.
+2. `npm ci` under `apps/mobile`.
+3. **Render templates**: run `bun run infra/dev/apply-mobile-config.ts` with every `app.template.json` / `eas.template.json` placeholder exposed as `env:` from GH Secrets. This writes the gitignored `apps/mobile/{app,eas}.json` the runner needs before `eas build` reads them.
+4. `expo/expo-github-action@v8` logs in with `secrets.EXPO_TOKEN`.
+5. `eas build --local --non-interactive --output ./…` — works in CI because step 3 already wrote the projectId + package name.
+6. If `profile=production && submit=true`: write `google-service-account.json` from `secrets.GOOGLE_PLAY_SA_KEY` and `eas submit --path ./build.aab`.
+7. Always (`success() || failure()`): upload the artifact (14d retention) and, if `release=true`, create the GitHub Release with the AAB/APK attached.
 
-**Usage:**
-```bash
-gh workflow run deploy.yml -f service=all -f confirm=deploy --repo TechZeed/review-app
-```
+The "always capture" on step 7 matters: when Play submit fails (e.g. service account missing app access) the AAB is still downloadable from the run's artifacts and Release — you don't have to rebuild.
 
----
+**Required GH Secrets** (populated by `task dev:sync:vault` from `.env.dev`):
 
-## 3. Migrate (`migrate.yml`)
+- `EXPO_TOKEN`, `EXPO_OWNER`, `EXPO_PROJECT_ID`
+- `APPLE_ID`, `APPLE_TEAM_ID`, `ASC_APP_ID` (reserved for iOS — see below)
+- `MOBILE_FIREBASE_*`, `MOBILE_API_URL`, `MOBILE_DASHBOARD_URL`, `MOBILE_WEB_URL`
+- `GOOGLE_OAUTH_WEB_CLIENT_ID`, `GOOGLE_OAUTH_ANDROID_CLIENT_ID`, `GOOGLE_OAUTH_IOS_CLIENT_ID`
+- `GOOGLE_PLAY_SA_KEY` (JSON for a service account with Release-manager access on the app)
 
-**Trigger:** Manual (`workflow_dispatch`)
+**Prerequisites that live outside the workflow:**
 
-**Inputs:**
-| Input | Options | Default |
-|---|---|---|
-| action | up / down / status | up |
-| confirm | Type `migrate` | — |
+- First Play Store submission for `sg.reviewapp.app` done manually once — Google blocks API submits until then.
+- Play service account (`eas-submit@humini-review.iam.gserviceaccount.com`) granted Release-manager (or Admin) access to the ReviewApp under Play Console → Users and permissions.
+- Tester email list created under Play Console → Internal testing → Testers.
 
-**What it does:**
-1. Validates confirmation
-2. Authenticates with GCP
-3. Installs Cloud SQL Proxy
-4. Starts proxy → connects to `dev_review_db`
-5. Runs `npx tsx src/db/cli.ts <action>`
+**iOS (reserved, not yet wired):**
 
-**Usage:**
-```bash
-# Run pending migrations
-gh workflow run migrate.yml -f action=up -f confirm=migrate --repo TechZeed/review-app
+EAS Submit for iOS uses an App Store Connect API key, not a Google-style SA. When we add the iOS path:
 
-# Rollback last migration
-gh workflow run migrate.yml -f action=down -f confirm=migrate --repo TechZeed/review-app
+1. Generate a key under App Store Connect → Users and Access → **Integrations** (role: App Manager). Download the `.p8`.
+2. Add `ASC_API_KEY_ID` and `ASC_API_ISSUER_ID` under `##### GitHub Secrets #####` in `.env.dev`.
+3. Put the `.p8` at `infra/dev/vault/asc-api-key.p8` and declare `ASC_API_KEY_PATH=infra/dev/vault/asc-api-key.p8` under `##### GitHub Vault Files #####`.
+4. `task dev:sync:vault` pushes both — the file goes as base64, decoded by `.github/actions/hydrate-vault` at workflow start.
+5. Extend `deploy-mobile.yml` with an `ios` profile branch calling `eas build --platform ios` and `eas submit --platform ios`.
 
-# Check migration status
-gh workflow run migrate.yml -f action=status -f confirm=migrate --repo TechZeed/review-app
-```
+TestFlight **tester** enrolment is separate (App Store Connect → My Apps → ReviewApp → TestFlight → Internal Testing).
 
 ---
 
-## 4. Deploy Mobile (`deploy-mobile.yml`)
+## `deploy.yml` — Cloud Run
 
-**Trigger:** Manual (`workflow_dispatch`)
-
-**Inputs:**
-| Input | Options | Default |
-|---|---|---|
-| profile | preview / production | preview |
-| build_mode | local / cloud | local |
-| submit | true / false | true |
-| confirm | Type `deploy-mobile` | — |
-
-**What it does:**
-1. Validates confirmation
-2. Sets up JDK 17 (for local builds)
-3. Installs EAS CLI
-4. Builds Android AAB (local or cloud)
-5. Submits to Play Store internal track (if submit=true)
-
-**Build modes:**
-- **local** — builds on GitHub runner, no EAS queue, free
-- **cloud** — builds on EAS servers, uses free tier quota (30/month)
-
-**Usage:**
-```bash
-# Local build + submit
-gh workflow run deploy-mobile.yml -f profile=production -f build_mode=local -f submit=true -f confirm=deploy-mobile --repo TechZeed/review-app
-
-# Cloud build only (no submit)
-gh workflow run deploy-mobile.yml -f profile=preview -f build_mode=cloud -f submit=false -f confirm=deploy-mobile --repo TechZeed/review-app
-```
+Dispatches `deploy.js` inside the runner. Input `service` picks `api` / `web` / `ui` / `all`. Same two-layer env applies: committed `application.<env>.env` defaults + `--set-env-vars` / `--set-secrets` from GH Secrets override.
 
 ---
 
-## GitHub Secrets
+## `migrate.yml`
 
-| Secret | Purpose |
-|---|---|
-| `GCP_PROJECT_ID` | `humini-review` |
-| `GCP_SA_KEY` | Service account key (review-deployer) |
-| `CLOUDSQL_CONNECTION_NAME` | Cloud SQL connection string |
-| `DB_PASSWORD` | Cloud SQL user password |
-| `EXPO_TOKEN` | EAS CLI authentication |
-| `GOOGLE_PLAY_SA_KEY` | Play Store service account key |
+Runs `./apps/api/run.sh <env> migrate`. Separate workflow so we can migrate without redeploying.
 
 ---
 
-## Custom Domains
+## `ci.yml`
 
-| Domain | Cloud Run Service |
-|---|---|
-| `review-api.teczeed.com` | review-api-dev |
-| `review-scan.teczeed.com` | review-web-dev |
-| `review-dashboard.teczeed.com` | review-ui-dev |
-| `review-profile.teczeed.com` | review-ui-dev |
+Reusable (`workflow_call`). Lint, typecheck, vitest, integration (Postgres service container), Docker build. No automatic trigger — other dispatch workflows invoke it as a pre-step, or it can be run manually.
 
 ---
 
-## Taskfile Equivalents
+## Adding a new workflow — checklist
 
-| GitHub Workflow | Taskfile Command |
-|---|---|
-| `deploy -f service=all` | `task dev:deploy:all` |
-| `deploy -f service=api` | `task dev:deploy:api` |
-| `migrate -f action=up` | `task dev:migrate` |
-| `migrate -f action=down` | `task dev:migrate:down` |
-| `deploy-mobile (local)` | `task dev:deploy:mobile` |
-| `deploy-mobile (cloud)` | `task dev:deploy:mobile:cloud` |
+1. Trigger is `workflow_dispatch` (and `workflow_call` if reusable). Nothing else.
+2. First input is a `confirm:` string matching the workflow name.
+3. Any env-varying value comes from `secrets.*` (populated by `task dev:sync:vault`) — no literals in YAML.
+4. Files on disk (`google-services.json`, `firebase-sa.json`, `.p8`) come from either a full-JSON secret written inline *or* the `##### GitHub Vault Files #####` section via `.github/actions/hydrate-vault` (spec 22).
+5. Mirror any new `dev:*` deploy task under a `prod:*` workflow scope — don't ship dev-only deploy paths.
+6. Update the table above.
