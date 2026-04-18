@@ -148,6 +148,22 @@ For mobile changes, `task dev:mobile:config` to confirm templates still render; 
 
 ---
 
-## 5. When rules conflict
+## 5. Git worktrees
+
+We work out of `git worktree add` checkouts for parallel feature branches. A fresh worktree starts blank for anything gitignored — `.env`, `.env.dev`, `.env.test`, and `infra/dev/vault/*` live only in the primary checkout.
+
+**Bootstrap a new worktree:**
+
+```bash
+git worktree add ../review-app-featX feat/X
+cd ../review-app-featX
+task worktree:link
+```
+
+`task worktree:link` (`infra/scripts/worktree-link.sh`) detects the primary worktree (the one where `.git` is a directory, not a file) and symlinks the four paths above into the current worktree. It's idempotent and refuses to clobber a real file if one somehow exists at the target.
+
+Rationale: we want one source of truth for secrets + vault files per machine. Copying them around invites drift; symlinking means `task dev:sync:vault` / `task dev:vault:pull` in any worktree writes through to the primary, and every other worktree sees the update immediately.
+
+## 6. When rules conflict
 
 Ship, don't stall. If a rule blocks real work (e.g. a migration needs a secret we haven't wired through the vault yet), take the shortcut and file the follow-up in the PR description. The rules exist to reduce repeat mistakes, not to gate shipping.

@@ -966,7 +966,7 @@ gcloud run services update review-api-prod \
 
 ### 8.1 docker-compose.yaml
 
-Located at `apps/api/docker-compose.yaml`.
+Located at `infra/local/docker-compose.yaml` (Postgres 16 on port 10032). Driven by `task local:infra:up` / `task local:bootstrap` / `task local:dev`. Reads `.env` at repo root for user/db/port. See spec 23 and CLAUDE.md "Local work uses local Docker Postgres".
 
 ```yaml
 version: "3.9"

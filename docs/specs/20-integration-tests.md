@@ -169,16 +169,17 @@ Internally (thin — docker-compose owns lifecycle):
 ## Running
 
 ```
+# Taskfiles live at repo root; run from anywhere in the tree.
+
 # full orchestrated run (up → migrate → seed → vitest → down)
-cd apps/api && task local:test:integration
+task test:integration
 
 # or piece by piece:
-cd apps/api
-task local:test:db:up         # start Postgres, wait healthy
-task local:test:db:migrate    # run migrations
-task local:test:db:seed       # insert fixtures
-npm run test:integration      # run vitest
-task local:test:db:down       # destroy (volume removed)
+task test:db:up         # start Postgres, wait healthy
+task test:db:migrate    # run migrations
+task test:db:seed       # insert fixtures
+npm --prefix apps/api run test:integration
+task test:db:down       # destroy (volume removed)
 ```
 
 Warm clean-run on Colima: **~16s** end-to-end, 34/35 green (the one
@@ -263,4 +264,4 @@ the env snapshot. A sharp edge documented in `setup.ts`.
 | `apps/api/tests/integration/routes.test.ts` | route sanity (mount-existence) |
 | `apps/api/vitest.config.ts` | `hookTimeout: 30000` (docker-compose + external DB means no 2-minute waits) |
 | `apps/api/package.json` | `test:integration`, `test:db:migrate`, `test:db:seed` scripts; `dotenv` devDep |
-| `apps/api/Taskfile.local.yml` | `test:db:up/down/migrate/seed/reset` + orchestrated `test:integration` with `defer` teardown |
+| `Taskfile.test.yml` (repo root) | `test:db:up/down/migrate/seed/reset` + orchestrated `test:integration` with `defer` teardown |

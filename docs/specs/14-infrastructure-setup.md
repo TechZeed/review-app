@@ -3,7 +3,13 @@
 **Project:** review-app
 **GCP Project:** humini-review (Project ID: humini-review, Number: 1049089489429)
 **Region:** asia-southeast1 (Singapore)
-**Date:** 2026-04-14
+**Date:** 2026-04-14 (amended 2026-04-18)
+
+> **Newer specs supersede parts of this one.** Read alongside:
+> - **spec 22** — file vault pattern (SA keys, Play Store key, Firebase creds). Replaces any "copy the JSON to `apps/api/`" instruction here.
+> - **spec 23** — repo conventions (Taskfile at root, `infra/scripts/` for `run.sh` + `deploy.js`, two-layer env pattern). If this spec still says `apps/api/Taskfile.yml` or `./run.sh`, treat that as outdated — the current locations are `Taskfile.yml` at root and `infra/scripts/run.sh`.
+> - **spec 17** — manual-only (`workflow_dispatch`) GitHub workflows.
+> - **CLAUDE.md** — the canonical quick reference for current paths and tasks.
 
 ---
 
