@@ -40,16 +40,75 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    # Secrets -> job env vars. deploy.js overlays these on top of whatever
+    # .env.<env> has (empty in CI, real file locally). Pattern lifted from
+    # iepapp/.github/workflows/deploy-api.yml.
     env:
-      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      GCP_REGION: asia-southeast1
-      CLOUDSQL_CONNECTION_NAME: ${{ secrets.CLOUDSQL_CONNECTION_NAME }}
+      # ── GCP ────────────────────────────────────────────────
+      # Skip Secret Manager upserts (CI SA only has accessor role).
+      # Run `task dev:sync:vault` from a maintainer's machine to populate.
+      SKIP_SECRET_SYNC: "true"
+      GCP_PROJECT_ID:                    ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION:                        asia-southeast1
+      CLOUDSQL_CONNECTION_NAME:          ${{ secrets.CLOUDSQL_CONNECTION_NAME }}
+      # ── Postgres (Cloud SQL via socket in Cloud Run) ──────
+      POSTGRES_DB:                       ${{ secrets.POSTGRES_DB }}
+      POSTGRES_USER:                     ${{ secrets.POSTGRES_USER }}
+      POSTGRES_PASSWORD:                 ${{ secrets.POSTGRES_PASSWORD }}
+      # ── Auth ──────────────────────────────────────────────
+      JWT_SECRET:                        ${{ secrets.JWT_SECRET }}
+      JWT_EXPIRATION_TIME_IN_MINUTES:    ${{ secrets.JWT_EXPIRATION_TIME_IN_MINUTES || '60' }}
+      # ── Firebase / GCS ────────────────────────────────────
+      FIREBASE_PROJECT_ID:               ${{ secrets.FIREBASE_PROJECT_ID }}
+      GCP_BUCKET_NAME:                   ${{ secrets.GCP_BUCKET_NAME }}
+      SIGNED_URL_EXPIRY_MINUTES:         ${{ secrets.SIGNED_URL_EXPIRY_MINUTES || '60' }}
+      # ── Stripe (test mode on dev) ─────────────────────────
+      STRIPE_SECRET_KEY:                 ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_PUBLISHABLE_KEY:            ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+      STRIPE_WEBHOOK_SECRET:             ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_PRODUCT_PRO:                ${{ secrets.STRIPE_PRODUCT_PRO }}
+      STRIPE_PRODUCT_EMPLOYER:           ${{ secrets.STRIPE_PRODUCT_EMPLOYER }}
+      STRIPE_PRODUCT_RECRUITER:          ${{ secrets.STRIPE_PRODUCT_RECRUITER }}
+      STRIPE_PRICE_PRO_MONTHLY:          ${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}
+      STRIPE_PRICE_PRO_ANNUAL:           ${{ secrets.STRIPE_PRICE_PRO_ANNUAL }}
+      STRIPE_PRICE_EMPLOYER_SMALL:       ${{ secrets.STRIPE_PRICE_EMPLOYER_SMALL }}
+      STRIPE_PRICE_EMPLOYER_MEDIUM:      ${{ secrets.STRIPE_PRICE_EMPLOYER_MEDIUM }}
+      STRIPE_PRICE_EMPLOYER_LARGE:       ${{ secrets.STRIPE_PRICE_EMPLOYER_LARGE }}
+      STRIPE_PRICE_RECRUITER_BASIC:      ${{ secrets.STRIPE_PRICE_RECRUITER_BASIC }}
+      STRIPE_PRICE_RECRUITER_PREMIUM:    ${{ secrets.STRIPE_PRICE_RECRUITER_PREMIUM }}
+      # ── SMS (mocked on dev) ───────────────────────────────
+      SMS_PROVIDER:                      ${{ secrets.SMS_PROVIDER || 'mock' }}
+      # ── App URLs / CORS ───────────────────────────────────
+      APP_URL:                           ${{ secrets.APP_URL || 'https://review-api.teczeed.com' }}
+      APP_BASE_URL:                      ${{ secrets.APP_BASE_URL || 'https://review-api.teczeed.com' }}
+      API_BASE_URL:                      ${{ secrets.API_BASE_URL || 'https://review-api.teczeed.com' }}
+      FRONTEND_URL:                      ${{ secrets.FRONTEND_URL || 'https://review-scan.teczeed.com' }}
+      CORS_ORIGINS:                      ${{ secrets.CORS_ORIGINS || 'https://review-scan.teczeed.com,https://review-dashboard.teczeed.com,https://review-profile.teczeed.com' }}
+      # ── Review policy ─────────────────────────────────────
+      REVIEW_TOKEN_EXPIRY_HOURS:         ${{ secrets.REVIEW_TOKEN_EXPIRY_HOURS || '48' }}
+      REVIEW_COOLDOWN_DAYS:              ${{ secrets.REVIEW_COOLDOWN_DAYS || '7' }}
+      ENABLE_HTTP_LOGGING:               ${{ secrets.ENABLE_HTTP_LOGGING || 'false' }}
+      # ── Vite build-time args (web/ui) ─────────────────────
+      VITE_API_URL:                      ${{ secrets.VITE_API_URL || 'https://review-api.teczeed.com' }}
+      VITE_FIREBASE_API_KEY:             ${{ secrets.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN:         ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID:          ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+      VITE_FIREBASE_STORAGE_BUCKET:      ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+      VITE_FIREBASE_APP_ID:              ${{ secrets.VITE_FIREBASE_APP_ID }}
+      VITE_FIREBASE_MEASUREMENT_ID:      ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Remove .env files
-        run: find . -name ".env*" -type f -delete && touch .env
+      # Wipe any .env files that may have slipped in, then create empty
+      # placeholders so local-dev code paths that `fs.existsSync('.env')`
+      # don't trip. Real config comes from the `env:` block above.
+      - name: Remove all .env files
+        run: |
+          find . -name ".env*" -type f -print -delete
+          touch .env
+          touch .env.dev
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
