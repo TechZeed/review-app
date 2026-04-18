@@ -55,3 +55,4 @@ apps/mobile/preview.apk
 apps/mobile/build.aab
 inprogress.md
 .deploy-env-vars.*.yaml
+.claude/
