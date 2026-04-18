@@ -37,7 +37,7 @@
       },
       "package": "sg.reviewapp.app",
       "edgeToEdgeEnabled": true,
-      "versionCode": 12,
+      "versionCode": 13,
       "intentFilters": [
         {
           "action": "VIEW",
