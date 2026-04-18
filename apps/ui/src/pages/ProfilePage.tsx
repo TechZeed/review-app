@@ -5,15 +5,28 @@ import QualityHeatMap from '../components/QualityHeatMap';
 import type { QualityBar } from '../components/QualityHeatMap';
 import ReviewCard from '../components/ReviewCard';
 import { fetchProfile, fetchReviews } from '../lib/api';
-import type { Review } from '../lib/api';
+import type { Profile } from '../lib/api';
 
-const QUALITY_COLOR_MAP: Record<string, string> = {
-  expertise: '#3B82F6',
-  care: '#EC4899',
-  delivery: '#22C55E',
-  initiative: '#F97316',
-  trust: '#8B5CF6',
-};
+const QUALITY_ORDER: Array<{
+  key: keyof NonNullable<Profile['qualityBreakdown']>;
+  name: string;
+  color: string;
+}> = [
+  { key: 'expertise', name: 'Expertise', color: '#3B82F6' },
+  { key: 'care', name: 'Care', color: '#EC4899' },
+  { key: 'delivery', name: 'Delivery', color: '#22C55E' },
+  { key: 'initiative', name: 'Initiative', color: '#F97316' },
+  { key: 'trust', name: 'Trust', color: '#8B5CF6' },
+];
+
+export function buildQualityBarsFromProfile(profile: Profile | undefined): QualityBar[] {
+  const breakdown = profile?.qualityBreakdown;
+  return QUALITY_ORDER.map(({ key, name, color }) => ({
+    name,
+    percentage: breakdown && typeof breakdown[key] === 'number' ? breakdown[key] : 0,
+    color,
+  }));
+}
 
 export default function ProfilePage() {
   const { slug } = useParams<{ slug: string }>();
@@ -29,13 +42,16 @@ export default function ProfilePage() {
     queryFn: () =>
       profileQuery.data
         ? fetchReviews(profileQuery.data.id)
-        : Promise.resolve({ reviews: [], total: 0, page: 1, limit: 20 }),
+        : Promise.resolve({
+            reviews: [],
+            pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+          }),
     enabled: !!profileQuery.data,
   });
 
   const profile = profileQuery.data;
   const reviews = reviewsQuery.data?.reviews || [];
-  const qualityBars = buildQualityBars(reviews);
+  const qualityBars = buildQualityBarsFromProfile(profile);
 
   if (profileQuery.isLoading) {
     return (
@@ -63,8 +79,6 @@ export default function ProfilePage() {
 
   if (!profile) return null;
 
-  const refCount = profile.verifiable_references;
-
   return (
     <div className="min-h-screen bg-gray-50" data-testid="profile-root">
       {/* Header */}
@@ -82,21 +96,6 @@ export default function ProfilePage() {
 
           <div className="space-y-4">
             <QualityHeatMap qualities={qualityBars} />
-
-            {refCount > 0 && (
-              <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center">
-                <div className="text-2xl font-bold text-purple-700">
-                  {refCount}
-                </div>
-                <div className="text-sm text-purple-600 mt-1">
-                  Verifiable References
-                </div>
-                <p className="text-xs text-purple-500 mt-2">
-                  People who would vouch for {profile.name} to a future
-                  employer
-                </p>
-              </div>
-            )}
           </div>
         </div>
 
@@ -122,33 +121,4 @@ export default function ProfilePage() {
       </main>
     </div>
   );
-}
-
-function buildQualityBars(reviews: Review[]): QualityBar[] {
-  if (reviews.length === 0) {
-    return [
-      { name: 'Expertise', percentage: 0, color: '#3B82F6' },
-      { name: 'Care', percentage: 0, color: '#EC4899' },
-      { name: 'Delivery', percentage: 0, color: '#22C55E' },
-      { name: 'Initiative', percentage: 0, color: '#F97316' },
-      { name: 'Trust', percentage: 0, color: '#8B5CF6' },
-    ];
-  }
-
-  const counts: Record<string, number> = {};
-  let totalPicks = 0;
-
-  reviews.forEach((r) => {
-    r.qualities.forEach((q) => {
-      const key = q.toLowerCase();
-      counts[key] = (counts[key] || 0) + 1;
-      totalPicks++;
-    });
-  });
-
-  return Object.entries(counts).map(([name, count]) => ({
-    name: name.charAt(0).toUpperCase() + name.slice(1),
-    percentage: totalPicks > 0 ? Math.round((count / totalPicks) * 100) : 0,
-    color: QUALITY_COLOR_MAP[name] || '#6B7280',
-  }));
 }

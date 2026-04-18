@@ -8,13 +8,26 @@ import ReviewCard from '../components/ReviewCard';
 import { fetchMyProfile, fetchReviews, fetchQualities } from '../lib/api';
 import type { Profile, Review } from '../lib/api';
 
-const QUALITY_COLOR_MAP: Record<string, string> = {
-  expertise: '#3B82F6',
-  care: '#EC4899',
-  delivery: '#22C55E',
-  initiative: '#F97316',
-  trust: '#8B5CF6',
-};
+const QUALITY_ORDER: Array<{
+  key: keyof NonNullable<Profile['qualityBreakdown']>;
+  name: string;
+  color: string;
+}> = [
+  { key: 'expertise', name: 'Expertise', color: '#3B82F6' },
+  { key: 'care', name: 'Care', color: '#EC4899' },
+  { key: 'delivery', name: 'Delivery', color: '#22C55E' },
+  { key: 'initiative', name: 'Initiative', color: '#F97316' },
+  { key: 'trust', name: 'Trust', color: '#8B5CF6' },
+];
+
+function buildQualityBarsFromProfile(profile: Profile | undefined): QualityBar[] {
+  const breakdown = profile?.qualityBreakdown;
+  return QUALITY_ORDER.map(({ key, name, color }) => ({
+    name,
+    percentage: breakdown && typeof breakdown[key] === 'number' ? breakdown[key] : 0,
+    color,
+  }));
+}
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -35,15 +48,17 @@ export default function DashboardPage() {
     queryFn: () =>
       profileQuery.data
         ? fetchReviews(profileQuery.data.id)
-        : Promise.resolve({ reviews: [], total: 0, page: 1, limit: 20 }),
+        : Promise.resolve({
+            reviews: [],
+            pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+          }),
     enabled: !!profileQuery.data,
   });
 
   const profile = profileQuery.data;
   const reviews = reviewsQuery.data?.reviews || [];
 
-  // Build quality bars from reviews data
-  const qualityBars: QualityBar[] = buildQualityBars(reviews);
+  const qualityBars: QualityBar[] = buildQualityBarsFromProfile(profile);
 
   const isLoading =
     profileQuery.isLoading || qualitiesQuery.isLoading;
@@ -86,14 +101,10 @@ export default function DashboardPage() {
               />
 
               {/* Stats row */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <StatCard
                   label="Total Reviews"
-                  value={profile.total_reviews}
-                />
-                <StatCard
-                  label="References"
-                  value={profile.verifiable_references}
+                  value={profile.reviewCount}
                 />
                 <StatCard
                   label="This Month"
@@ -159,41 +170,14 @@ function StatCard({
   );
 }
 
-function buildQualityBars(reviews: Review[]): QualityBar[] {
-  if (reviews.length === 0) {
-    return [
-      { name: 'Expertise', percentage: 0, color: '#3B82F6' },
-      { name: 'Care', percentage: 0, color: '#EC4899' },
-      { name: 'Delivery', percentage: 0, color: '#22C55E' },
-      { name: 'Initiative', percentage: 0, color: '#F97316' },
-      { name: 'Trust', percentage: 0, color: '#8B5CF6' },
-    ];
-  }
-
-  const counts: Record<string, number> = {};
-  let totalPicks = 0;
-
-  reviews.forEach((r) => {
-    r.qualities.forEach((q) => {
-      const key = q.toLowerCase();
-      counts[key] = (counts[key] || 0) + 1;
-      totalPicks++;
-    });
-  });
-
-  return Object.entries(counts).map(([name, count]) => ({
-    name: name.charAt(0).toUpperCase() + name.slice(1),
-    percentage: totalPicks > 0 ? Math.round((count / totalPicks) * 100) : 0,
-    color: QUALITY_COLOR_MAP[name] || '#6B7280',
-  }));
-}
-
 function countThisMonth(reviews: Review[]): number {
   const now = new Date();
   const month = now.getMonth();
   const year = now.getFullYear();
   return reviews.filter((r) => {
-    const d = new Date(r.created_at);
+    if (!r.createdAt) return false;
+    const d = new Date(r.createdAt);
+    if (Number.isNaN(d.getTime())) return false;
     return d.getMonth() === month && d.getFullYear() === year;
   }).length;
 }
