@@ -15,19 +15,54 @@
  *                                     boot by .github/actions/hydrate-vault
  *
  * Usage:
- *   bun run --env-file=.env.dev infra/dev/sync-vault.ts          # push all
- *   bun run --env-file=.env.dev infra/dev/sync-vault.ts gcp      # GCP strings + files
- *   bun run --env-file=.env.dev infra/dev/sync-vault.ts gh       # GH strings + files
- *   bun run --env-file=.env.dev infra/dev/sync-vault.ts --dry    # preview
- *   bun run --env-file=.env.dev infra/dev/sync-vault.ts pull     # pull GCP vault
+ *   bun run --env-file=.env.dev infra/scripts/sync-vault.ts          # push all
+ *   bun run --env-file=.env.dev infra/scripts/sync-vault.ts gcp      # GCP strings + files
+ *   bun run --env-file=.env.dev infra/scripts/sync-vault.ts gh       # GH strings + files
+ *   bun run --env-file=.env.dev infra/scripts/sync-vault.ts --dry    # preview
+ *   bun run --env-file=.env.dev infra/scripts/sync-vault.ts pull     # pull GCP vault
  *                                                                  files to disk
- *   bun run --env-file=.env.dev infra/dev/sync-vault.ts pull --force  # overwrite
+ *   bun run --env-file=.env.dev infra/scripts/sync-vault.ts pull --force  # overwrite
  *
  * See docs/specs/22-file-vault-pattern.md.
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { resolve, dirname, basename } from "node:path";
+
+// Concurrency for remote writes. 6 matches what reqsume (secrets.go) settled
+// on — high enough to hide gh/gcloud's ~500ms cold-start, low enough to stay
+// under GitHub's secondary-rate-limit for /repos/{}/actions/secrets.
+const CONCURRENCY = 6;
+
+async function pool<T>(items: T[], worker: (item: T) => Promise<void>): Promise<void> {
+  let i = 0;
+  const runners = Array.from({ length: Math.min(CONCURRENCY, items.length) }, async () => {
+    while (true) {
+      const idx = i++;
+      if (idx >= items.length) return;
+      await worker(items[idx]);
+    }
+  });
+  await Promise.all(runners);
+}
+
+function runAsync(
+  cmd: string,
+  args: string[],
+  input?: string | Buffer,
+): Promise<{ ok: boolean; out: string; err: string }> {
+  return new Promise((resolvePromise) => {
+    const proc = spawn(cmd, args);
+    let out = "";
+    let err = "";
+    proc.stdout.on("data", (d) => (out += d.toString()));
+    proc.stderr.on("data", (d) => (err += d.toString()));
+    proc.on("close", (code) => resolvePromise({ ok: code === 0, out, err }));
+    proc.on("error", (e) => resolvePromise({ ok: false, out, err: err + e.message }));
+    if (input !== undefined) proc.stdin.end(input);
+    else proc.stdin.end();
+  });
+}
 
 // String-secret env var → GCP Secret Manager name. Must match SECRET_MAP
 // in apps/api/src/config/configResolver.ts.
@@ -159,7 +194,7 @@ function addGcpVersion(name: string, data: string | Buffer): { ok: boolean; err:
 
 // ─── String secret sync ─────────────────────────────────────────
 
-function syncGcp(entry: Entry, dry: boolean): void {
+async function syncGcp(entry: Entry, dry: boolean): Promise<void> {
   const secretName = GCP_SECRET_NAMES[entry.key];
   if (!secretName) {
     console.log(`  ⏭  ${entry.key} — no GCP secret name mapped, skipping`);
@@ -173,7 +208,11 @@ function syncGcp(entry: Entry, dry: boolean): void {
     console.log(`  ✗ ${entry.key} — create failed`);
     return;
   }
-  const r = addGcpVersion(secretName, entry.value);
+  const r = await runAsync(
+    "gcloud",
+    ["secrets", "versions", "add", secretName, `--project=${gcloudProject()}`, "--data-file=-", "--quiet"],
+    entry.value,
+  );
   console.log(
     r.ok
       ? `  ✓ ${entry.key} → gcp:${secretName}`
@@ -181,7 +220,7 @@ function syncGcp(entry: Entry, dry: boolean): void {
   );
 }
 
-function syncGh(entry: Entry, dry: boolean): void {
+async function syncGh(entry: Entry, dry: boolean): Promise<void> {
   if (entry.key === "GCP_SA_KEY_FILE") {
     const path = resolve(entry.value);
     if (!existsSync(path)) {
@@ -193,7 +232,7 @@ function syncGh(entry: Entry, dry: boolean): void {
       console.log(`  [dry] GCP_SA_KEY (from ${path}) → gh secret`);
       return;
     }
-    const r = run("gh", ["secret", "set", "GCP_SA_KEY", "--body", body]);
+    const r = await runAsync("gh", ["secret", "set", "GCP_SA_KEY"], body);
     console.log(
       r.ok
         ? `  ✓ GCP_SA_KEY (from ${path}) → gh`
@@ -206,7 +245,7 @@ function syncGh(entry: Entry, dry: boolean): void {
     console.log(`  [dry] ${entry.key} → gh secret`);
     return;
   }
-  const r = run("gh", ["secret", "set", entry.key, "--body", entry.value]);
+  const r = await runAsync("gh", ["secret", "set", entry.key], entry.value);
   console.log(r.ok ? `  ✓ ${entry.key} → gh` : `  ✗ ${entry.key} — ${r.err.trim()}`);
 }
 
@@ -243,7 +282,7 @@ function resolveVaultPath(valuePath: string): string {
   return resolve(REPO_ROOT, stripped);
 }
 
-function syncGcpVault(entry: Entry, dry: boolean): void {
+async function syncGcpVault(entry: Entry, dry: boolean): Promise<void> {
   const abs = resolveVaultPath(entry.value);
   if (!existsSync(abs)) {
     console.log(`  ⏭  ${entry.key} → ${abs} not found, skipping`);
@@ -259,7 +298,11 @@ function syncGcpVault(entry: Entry, dry: boolean): void {
     return;
   }
   const bytes = readFileSync(abs);
-  const r = addGcpVersion(secretName, bytes);
+  const r = await runAsync(
+    "gcloud",
+    ["secrets", "versions", "add", secretName, `--project=${gcloudProject()}`, "--data-file=-", "--quiet"],
+    bytes,
+  );
   console.log(
     r.ok
       ? `  ✓ ${entry.key} (${abs}) → gcp:${secretName}`
@@ -267,7 +310,7 @@ function syncGcpVault(entry: Entry, dry: boolean): void {
   );
 }
 
-function syncGhVault(entry: Entry, dry: boolean): void {
+async function syncGhVault(entry: Entry, dry: boolean): Promise<void> {
   const abs = resolveVaultPath(entry.value);
   if (!existsSync(abs)) {
     console.log(`  ⏭  ${entry.key} → ${abs} not found, skipping`);
@@ -279,7 +322,7 @@ function syncGhVault(entry: Entry, dry: boolean): void {
     return;
   }
   const b64 = readFileSync(abs).toString("base64");
-  const r = run("gh", ["secret", "set", ghName, "--body", b64]);
+  const r = await runAsync("gh", ["secret", "set", ghName], b64);
   console.log(
     r.ok
       ? `  ✓ ${entry.key} (${abs}) → gh:${ghName}`
@@ -315,7 +358,7 @@ function pullGcpVault(entry: Entry, force: boolean): void {
 
 // ─── Main ──────────────────────────────────────────────────────
 
-function main(): void {
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const dry = args.includes("--dry") || args.includes("--dry-run");
   const force = args.includes("--force");
@@ -338,30 +381,36 @@ function main(): void {
   const gcpVault = entries.filter((e) => e.section === "gcp_vault");
   const ghVault = entries.filter((e) => e.section === "gh_vault");
 
-  console.log(`sync-vault — project=${gcloudProject()} mode=${mode ?? "all"} dry=${dry}`);
+  const started = Date.now();
+  console.log(
+    `sync-vault — project=${gcloudProject()} mode=${mode ?? "all"} dry=${dry} concurrency=${CONCURRENCY}`,
+  );
 
   if (mode === "pull") {
     console.log(`\nPulling ${gcpVault.length} GCP vault files (force=${force}):`);
     for (const e of gcpVault) pullGcpVault(e, force);
-    console.log("\nDone.");
+    console.log(`\nDone in ${((Date.now() - started) / 1000).toFixed(1)}s.`);
     return;
   }
 
   if (!mode || mode === "gcp") {
     console.log(`\nGCP Secret Manager — strings (${gcp.length}):`);
-    for (const e of gcp) syncGcp(e, dry);
+    await pool(gcp, (e) => syncGcp(e, dry));
     console.log(`\nGCP Secret Manager — vault files (${gcpVault.length}):`);
-    for (const e of gcpVault) syncGcpVault(e, dry);
+    await pool(gcpVault, (e) => syncGcpVault(e, dry));
   }
 
   if (!mode || mode === "gh") {
     console.log(`\nGitHub Secrets — strings (${gh.length}):`);
-    for (const e of gh) syncGh(e, dry);
+    await pool(gh, (e) => syncGh(e, dry));
     console.log(`\nGitHub Secrets — vault files (${ghVault.length}):`);
-    for (const e of ghVault) syncGhVault(e, dry);
+    await pool(ghVault, (e) => syncGhVault(e, dry));
   }
 
-  console.log("\nDone.");
+  console.log(`\nDone in ${((Date.now() - started) / 1000).toFixed(1)}s.`);
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

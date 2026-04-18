@@ -17,7 +17,7 @@ If a value changes between local / dev / prod, it is an env var. Not a constant,
 
 ### 1.2 `.env.dev` is the single source of truth for env-varying runtime values
 
-URLs, project IDs, Firebase config, OAuth client IDs, mobile identifiers, Stripe product/price IDs — all live in `.env.dev` (gitignored). Section headers are parsed by `infra/dev/sync-vault.ts`; never rename them:
+URLs, project IDs, Firebase config, OAuth client IDs, mobile identifiers, Stripe product/price IDs — all live in `.env.dev` (gitignored). Section headers are parsed by `infra/scripts/sync-vault.ts`; never rename them:
 
 ```
 ##### GCP Secrets #####
@@ -41,7 +41,7 @@ Rules:
 
 ### 1.4 Committed JSON that varies by env is rendered from a template
 
-Never edit `apps/mobile/app.json` or `apps/mobile/eas.json` directly — they are generated from `*.template.json` by `infra/dev/apply-mobile-config.ts` using `${VAR}` substitution from `.env.dev`. Both outputs are gitignored. Any new env-varying JSON config follows the same pattern.
+Never edit `apps/mobile/app.json` or `apps/mobile/eas.json` directly — they are generated from `*.template.json` by `infra/scripts/apply-mobile-config.ts` using `${VAR}` substitution from `.env.dev`. Both outputs are gitignored. Any new env-varying JSON config follows the same pattern.
 
 ### 1.5 File vault
 

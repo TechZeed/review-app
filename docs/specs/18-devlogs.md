@@ -21,14 +21,14 @@ The existing `task dev:logs:api` (and `:web`, `:ui`) use `gcloud run services lo
 
 ## What Was Built
 
-### `infra/dev/devlogs.ts`
+### `infra/scripts/devlogs.ts`
 
 A Bun script that streams live logs from any Cloud Run dev service to both the terminal and a local `devlogs.log` file.
 
 | Aspect | Detail |
 |---|---|
 | Runtime | Bun (TypeScript, no compile step) |
-| Location | `infra/dev/devlogs.ts` |
+| Location | `infra/scripts/devlogs.ts` |
 | GCP command | `gcloud run services logs tail` (live stream, not one-shot read) |
 | Output | Terminal (stdout) **and** `devlogs.log` (appended) |
 | Config source | `GCP_PROJECT_ID` + `GCP_REGION` from `.env.dev` |
@@ -75,6 +75,6 @@ Missing GCP_PROJECT_ID or GCP_REGION — load .env.dev first
 
 | File | Change |
 |---|---|
-| `infra/dev/devlogs.ts` | New — Bun log streaming script |
+| `infra/scripts/devlogs.ts` | New — Bun log streaming script |
 | `apps/api/Taskfile.dev.yml` | Added `dotenv`, `REPO_ROOT` var, `logs:` task, `logs:ui` task; replaced hardcoded region/project with env vars |
 | `.env.dev` | Added `GCP_REGION=asia-southeast1` |

@@ -64,7 +64,7 @@ tasks:
 
   mobile:config:
     desc: Render apps/mobile/{eas,app}.json from templates using .env.dev
-    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/dev/apply-mobile-config.ts
+    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/scripts/apply-mobile-config.ts
 
   deploy:mobile:
     desc: Build Android locally and submit to Play Store internal track
@@ -122,21 +122,21 @@ tasks:
 
   logs:
     desc: Stream live API logs to terminal + devlogs.log (tee)
-    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/dev/devlogs.ts {{.CLI_ARGS}}
+    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/scripts/devlogs.ts {{.CLI_ARGS}}
 
   # ─── Vault / Secrets ─────────────────────────────────────────────────────────
 
   sync:vault:
     desc: Distribute .env.dev values to GCP Secret Manager + GitHub Secrets
-    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/dev/sync-vault.ts {{.CLI_ARGS}}
+    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/scripts/sync-vault.ts {{.CLI_ARGS}}
 
   sync:vault:dry:
     desc: Preview what sync:vault would push (no writes)
-    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/dev/sync-vault.ts --dry
+    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/scripts/sync-vault.ts --dry
 
   vault:pull:
     desc: Fetch GCP vault files from Secret Manager to infra/dev/vault/
-    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/dev/sync-vault.ts pull {{.CLI_ARGS}}
+    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/scripts/sync-vault.ts pull {{.CLI_ARGS}}
 
   # ─── Status ──────────────────────────────────────────────────────────────────
 

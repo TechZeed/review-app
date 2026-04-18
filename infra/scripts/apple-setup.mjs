@@ -8,7 +8,7 @@
  * You log in + do 2FA manually. The script watches the pages and writes both
  * IDs to `apps/mobile/.apple-ids.json`. Ctrl+C to stop.
  *
- * Run:  node infra/dev/apple-setup.mjs
+ * Run:  node infra/scripts/apple-setup.mjs
  */
 import { chromium } from "/usr/local/lib/node_modules/playwright/index.mjs";
 import { writeFileSync, existsSync, readFileSync } from "node:fs";

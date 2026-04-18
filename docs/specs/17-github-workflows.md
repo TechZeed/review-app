@@ -44,10 +44,10 @@ This is the workflow we rely on instead of local EAS builds. Local builds broke 
 
 1. Set up Node 20 + Bun + JDK 17 (Temurin) on `ubuntu-latest`.
 2. `npm ci` under `apps/mobile`.
-3. **Render templates**: run `bun run infra/dev/apply-mobile-config.ts` with every `app.template.json` / `eas.template.json` placeholder exposed as `env:` from GH Secrets. This writes the gitignored `apps/mobile/{app,eas}.json` the runner needs before `eas build` reads them.
+3. **Render templates**: run `bun run infra/scripts/apply-mobile-config.ts` with every `app.template.json` / `eas.template.json` placeholder exposed as `env:` from GH Secrets. This writes the gitignored `apps/mobile/{app,eas}.json` the runner needs before `eas build` reads them.
 4. `expo/expo-github-action@v8` logs in with `secrets.EXPO_TOKEN`.
 5. `eas build --local --non-interactive --output ./…` — works in CI because step 3 already wrote the projectId + package name.
-6. If `profile=production && submit=true`: write `google-service-account.json` from `secrets.GOOGLE_PLAY_SA_KEY` and `eas submit --path ./build.aab`.
+6. If `profile=production && submit=true`: decode `secrets.EAS_SUBMIT_SA_B64` to `google-service-account.json` and `eas submit --path ./build.aab`.
 7. Always (`success() || failure()`): upload the artifact (14d retention) and, if `release=true`, create the GitHub Release with the AAB/APK attached.
 
 The "always capture" on step 7 matters: when Play submit fails (e.g. service account missing app access) the AAB is still downloadable from the run's artifacts and Release — you don't have to rebuild.
@@ -82,13 +82,13 @@ TestFlight **tester** enrolment is separate (App Store Connect → My Apps → R
 
 ## `deploy.yml` — Cloud Run
 
-Dispatches `deploy.js` inside the runner. Input `service` picks `api` / `web` / `ui` / `all`. Same two-layer env applies: committed `application.<env>.env` defaults + `--set-env-vars` / `--set-secrets` from GH Secrets override.
+Dispatches `infra/scripts/deploy.js` inside the runner. Input `service` picks `api` / `web` / `ui` / `all`. Same two-layer env applies: committed `application.<env>.env` defaults + `--set-env-vars` / `--set-secrets` from GH Secrets override.
 
 ---
 
 ## `migrate.yml`
 
-Runs `./apps/api/run.sh <env> migrate`. Separate workflow so we can migrate without redeploying.
+Runs `infra/scripts/run.sh <env> migrate`. Separate workflow so we can migrate without redeploying.
 
 ---
 

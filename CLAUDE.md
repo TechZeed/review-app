@@ -69,13 +69,13 @@ _Also available but rarely needed: `dev:startproxy` (Cloud SQL Auth Proxy on `:6
 
 Section headers in `.env.dev` are **parsed by scripts** — do not rename:
 
-- `##### GCP Secrets #####` / `##### GitHub Secrets #####` / `##### Both #####` — pushed to the corresponding store by `infra/dev/sync-vault.ts`.
+- `##### GCP Secrets #####` / `##### GitHub Secrets #####` / `##### Both #####` — pushed to the corresponding store by `infra/scripts/sync-vault.ts`.
 - `##### GCP Vault Files #####` / `##### GitHub Vault Files #####` — **file contents** pushed; see the file-vault pattern below.
 - `##### Local #####` — stays local.
 
 Runtime code **must not read `.env.dev` in production** — Cloud Run populates `process.env` via `--set-env-vars` / `--set-secrets`. `ConfigResolver` falls back to GCP Secret Manager if an env var is missing.
 
-`apps/mobile/eas.json` **and** `apps/mobile/app.json` are both **generated** from `apps/mobile/eas.template.json` + `apps/mobile/app.template.json` using `${VAR}` placeholders sourced from `.env.dev`. Both output files are gitignored. The render script is `infra/dev/apply-mobile-config.ts`; `dev:mobile:config` task runs it and is a dep of every `deploy:mobile*` task. **Never edit `app.json` or `eas.json` directly — edit the `.template.json` and/or add the var to `.env.dev`.**
+`apps/mobile/eas.json` **and** `apps/mobile/app.json` are both **generated** from `apps/mobile/eas.template.json` + `apps/mobile/app.template.json` using `${VAR}` placeholders sourced from `.env.dev`. Both output files are gitignored. The render script is `infra/scripts/apply-mobile-config.ts`; `dev:mobile:config` task runs it and is a dep of every `deploy:mobile*` task. **Never edit `app.json` or `eas.json` directly — edit the `.template.json` and/or add the var to `.env.dev`.**
 
 ## Two-layer env pattern (API)
 

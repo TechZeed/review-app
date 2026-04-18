@@ -7,7 +7,7 @@
  * .template.json or add the variable to .env.dev.
  *
  * Usage:
- *   bun run --env-file=.env.dev infra/dev/apply-mobile-config.ts
+ *   bun run --env-file=.env.dev infra/scripts/apply-mobile-config.ts
  *
  * Invoked automatically by `task dev:mobile:config` (a dep of every
  * deploy:mobile* task).
@@ -46,7 +46,7 @@ const sources = TARGETS.map(({ template, out }) => {
 const missing = [...allRequired].filter((k) => !process.env[k]);
 if (missing.length) {
   console.error(`apply-mobile-config: missing env vars: ${missing.join(", ")}`);
-  console.error("Run via: bun run --env-file=.env.dev infra/dev/apply-mobile-config.ts");
+  console.error("Run via: bun run --env-file=.env.dev infra/scripts/apply-mobile-config.ts");
   process.exit(1);
 }
 
