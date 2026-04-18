@@ -61,14 +61,12 @@ tasks:
     cmd: node {{.REPO_ROOT}}/infra/scripts/deploy.js all dev
 
   # ─── Mobile ──────────────────────────────────────────────────────────────────
-
-  mobile:config:
-    desc: Render apps/mobile/{eas,app}.json from templates using .env.dev
-    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/scripts/apply-mobile-config.ts
+  # apps/mobile/{app,eas}.json are committed (EAS tarballs via git archive,
+  # so gitignored files never reach the sandbox). Values in them are public
+  # by design — they ship in every APK/IPA anyway. No render step needed.
 
   deploy:mobile:
     desc: Build Android locally and submit to Play Store internal track
-    deps: [mobile:config]
     dir: "{{.REPO_ROOT}}/apps/mobile"
     cmds:
       - eas build --platform android --profile production --local --output ./build.aab --non-interactive
@@ -77,13 +75,11 @@ tasks:
 
   deploy:mobile:preview:
     desc: Build preview APK locally for sharing with testers
-    deps: [mobile:config]
     dir: "{{.REPO_ROOT}}/apps/mobile"
     cmd: eas build --platform android --profile preview --local --output ./preview.apk
 
   deploy:mobile:cloud:
     desc: Build Android on EAS cloud and submit (last-resort when local fails)
-    deps: [mobile:config]
     dir: "{{.REPO_ROOT}}/apps/mobile"
     cmds:
       - eas build --platform android --profile production --non-interactive
@@ -91,7 +87,6 @@ tasks:
 
   deploy:mobile:ios:
     desc: Build iOS locally and submit to TestFlight (needs Xcode + Apple auth)
-    deps: [mobile:config]
     dir: "{{.REPO_ROOT}}/apps/mobile"
     cmds:
       - eas build --platform ios --profile production --local --output ./build.ipa --non-interactive
@@ -100,7 +95,6 @@ tasks:
 
   deploy:mobile:ios:cloud:
     desc: Build iOS on EAS cloud and submit to TestFlight (fallback)
-    deps: [mobile:config]
     dir: "{{.REPO_ROOT}}/apps/mobile"
     cmds:
       - eas build --platform ios --profile production --non-interactive

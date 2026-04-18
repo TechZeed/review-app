@@ -73,27 +73,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Render app.json + eas.json from templates
-        working-directory: ${{ github.workspace }}
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
-          EXPO_OWNER: ${{ secrets.EXPO_OWNER }}
-          EXPO_PROJECT_ID: ${{ secrets.EXPO_PROJECT_ID }}
-          GOOGLE_OAUTH_ANDROID_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_ANDROID_CLIENT_ID }}
-          GOOGLE_OAUTH_IOS_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_IOS_CLIENT_ID }}
-          GOOGLE_OAUTH_WEB_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_WEB_CLIENT_ID }}
-          MOBILE_API_URL: ${{ secrets.MOBILE_API_URL }}
-          MOBILE_DASHBOARD_URL: ${{ secrets.MOBILE_DASHBOARD_URL }}
-          MOBILE_FIREBASE_API_KEY: ${{ secrets.MOBILE_FIREBASE_API_KEY }}
-          MOBILE_FIREBASE_APP_ID: ${{ secrets.MOBILE_FIREBASE_APP_ID }}
-          MOBILE_FIREBASE_AUTH_DOMAIN: ${{ secrets.MOBILE_FIREBASE_AUTH_DOMAIN }}
-          MOBILE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.MOBILE_FIREBASE_MESSAGING_SENDER_ID }}
-          MOBILE_FIREBASE_PROJECT_ID: ${{ secrets.MOBILE_FIREBASE_PROJECT_ID }}
-          MOBILE_WEB_URL: ${{ secrets.MOBILE_WEB_URL }}
-        run: bun run infra/scripts/apply-mobile-config.ts
-
       - name: Setup EAS
         uses: expo/expo-github-action@v8
         with:
