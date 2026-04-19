@@ -152,6 +152,12 @@ tasks:
     desc: Fetch review-dev-bundle from GCP Secret Manager (falls back to `gcloud config` project) and unpack into repo root
     cmd: bun run {{.REPO_ROOT}}/infra/scripts/dev-bundle.ts pull {{.CLI_ARGS}}
 
+  # ─── Play Console ────────────────────────────────────────────────────────────
+
+  play:status:
+    desc: Query Play Console (via eas-submit SA) for app identity, listings, and track releases
+    cmd: bun run {{.REPO_ROOT}}/infra/scripts/play-status.ts {{.CLI_ARGS}}
+
   # ─── Status ──────────────────────────────────────────────────────────────────
 
   status:
