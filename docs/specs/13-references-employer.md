@@ -3,7 +3,7 @@
 **Product:** Every Individual is a Brand -- Portable Individual Review App
 **Author:** Muthukumaran Navaneethakrishnan
 **Date:** 2026-04-14
-**Status:** Draft
+**Status:** Part 2 (Employer Dashboard) frontend in dev — backend per-tab endpoints still partial; references-inbox approve/decline endpoints not yet exposed (see §20).
 **PRD References:** PRD-07 (Verifiable References), PRD-05 (Monetization -- Employer Dashboard)
 **Spec Dependencies:** Spec-02 (Database Schema), Spec-03 (API Endpoints), Spec-06 (QR Review & Anti-Fraud)
 
@@ -1795,7 +1795,71 @@ describe('Employer Access Control', () => {
 
 ---
 
-### 19. ER Diagram (New Tables)
+### 20. Frontend UX (Employer Dashboard)
+
+Implemented in `apps/ui/src/pages/EmployerPage.tsx`. Allowed roles: `EMPLOYER`, `ADMIN`. Other roles get a client-side redirect to `/dashboard`.
+
+#### 20.1 Layout
+
+```
+┌─ NavBar ────────────────────────────────────────────────┐
+├─ "Employer dashboard"   <organizationName from API>      │
+├─ Tabs: [References inbox] [Team reviews] [Organization]  │
+│        (References inbox is the default)                 │
+├─ Tab body                                                │
+│   ├─ References inbox                                    │
+│   │   • Amber notice: "Employer-side approve/decline of  │
+│   │     verifiable references is not yet exposed by the  │
+│   │     API. This tab surfaces team retention signals." │
+│   │   • List of retention alerts with disabled           │
+│   │     Approve/Decline buttons (testids stable for the  │
+│   │     day the API ships).                              │
+│   ├─ Team reviews                                        │
+│   │   • Table of consented team members from             │
+│   │     GET /api/v1/employer/team                        │
+│   ├─ Organization                                        │
+│   │   • Stat cards (team size, total reviews, avg/member,│
+│   │     velocity Δ) + quality breakdown + top performers │
+│   │     from GET /api/v1/employer/dashboard              │
+└──────────────────────────────────────────────────────────┘
+```
+
+#### 20.2 API surface used
+
+| Endpoint | Tab | Notes |
+|---|---|---|
+| `GET /api/v1/employer/dashboard` | Organization (and header) | Eager — fetched on mount so the header can show `organizationName`. |
+| `GET /api/v1/employer/team?limit=50` | Team reviews | Lazy — `enabled: tab === 'team'`. |
+| `GET /api/v1/employer/team/retention` | References inbox | Lazy — `enabled: tab === 'references'`. |
+
+All GETs go through React Query (5-min stale window inherited from `App.tsx`'s `QueryClient`). Mutations are not wired today — there is no employer-side approve/decline endpoint yet.
+
+#### 20.3 testid map
+
+| testid | Element |
+|---|---|
+| `employer-root` | Page root `<div>` |
+| `employer-tab-references` | "References inbox" tab button |
+| `employer-tab-team` | "Team reviews" tab button |
+| `employer-tab-org` | "Organization" tab button |
+| `employer-references` | References tab body container |
+| `employer-team` | Team tab body container |
+| `employer-org` | Organization tab body container |
+| `employer-reference-row` | One retention-alert row |
+| `employer-approve-ref-btn` | Approve button (disabled — API gap) |
+| `employer-decline-ref-btn` | Decline button (disabled — API gap) |
+| `employer-team-review-row` | One team-member row |
+
+#### 20.4 API gaps (logged, not invented)
+
+- **Employer references inbox.** The recruiter-driven flow in §3 has no employer-side counterpart. The dashboard cannot list pending verifiable references for "my org" or approve/decline them. Add `GET /api/v1/employer/references` + `POST /:id/approve|decline` to ship this tab properly.
+- **Per-employee review feed.** §16 promises team aggregates but no per-employee review timeline. The "Team reviews" tab currently lists members only; clicking through to a member's reviews is gated on `GET /api/v1/employer/team/:profileId` returning `recentReviews`.
+
+Regression coverage lives in `apps/regression/src/flows/08-employer.spec.ts` (dashboard project in `playwright.config.ts`).
+
+---
+
+### 21. ER Diagram (New Tables)
 
 ```mermaid
 erDiagram

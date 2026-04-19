@@ -44,7 +44,7 @@ export default defineConfig({
     {
       name: "dashboard",
       use: { baseURL: DASHBOARD_URL },
-      testMatch: /(02-dashboard-login|03-dashboard-reviews|05-role-upgrade|06-subscription|07-admin-page)\.spec\.ts/,
+      testMatch: /(02-dashboard-login|03-dashboard-reviews|05-role-upgrade|06-subscription|07-admin-page|08-employer|09-recruiter)\.spec\.ts/,
     },
     {
       name: "api",
