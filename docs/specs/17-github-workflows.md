@@ -2,7 +2,7 @@
 
 **Project:** ReviewApp
 **Repo:** TechZeed/review-app
-**Date:** 2026-04-16 (rewritten 2026-04-18 — manual-only + mobile CI pipeline)
+**Date:** 2026-04-16 (rewritten 2026-04-18 — manual-only + mobile CI pipeline; amended 2026-04-19 — versionCode bump, iOS status, internal-only guardrail)
 
 ---
 
@@ -50,6 +50,18 @@ This is the workflow we rely on instead of local EAS builds. Local builds broke 
 6. If `profile=production && submit=true`: decode `secrets.EAS_SUBMIT_SA_B64` to `google-service-account.json` and `eas submit --path ./build.aab`.
 7. Always (`success() || failure()`): upload the artifact (14d retention) and, if `release=true`, create the GitHub Release with the AAB/APK attached.
 
+### Android versionCode management
+
+`eas build --local` does **not** reliably honour `cli.appVersionSource: remote` + `build.production.autoIncrement: true` — the version bump that EAS would normally do server-side never reaches the local build, so the same `versionCode` ships twice and Play rejects the second submit with *"You've already submitted this version"*.
+
+Fix (in effect 2026-04-19): `appVersionSource` is flipped back to `local`, and `deploy-mobile.yml` runs a `jq` step before `eas build` that rewrites `apps/mobile/app.json` with `versionCode = 100 + GITHUB_RUN_NUMBER`. `GITHUB_RUN_NUMBER` is workflow-scoped and monotonic, the `+100` offset keeps the CI-managed range well above manual versionCodes (last manual bump was 13).
+
+The `app.json` edit is a runner-only mutation — never committed back. Preview builds (APK) skip the bump entirely, so sideload builds don't burn versionCode space.
+
+### Internal-testers-only guardrail
+
+The Android submit config is `track: internal` + `releaseStatus: draft` (`apps/mobile/eas.json`). This is **load-bearing** — flipping either to `production` / `completed` would push the same AAB to the public Play Store. Do not edit these without a separate spec update; internal testers (Play Console → Internal testing → Testers) are the only distribution surface today.
+
 The "always capture" on step 7 matters: when Play submit fails (e.g. service account missing app access) the AAB is still downloadable from the run's artifacts and Release — you don't have to rebuild.
 
 **Required GH Secrets** (populated by `task dev:sync:vault` from `.env.dev`):
@@ -66,17 +78,21 @@ The "always capture" on step 7 matters: when Play submit fails (e.g. service acc
 - Play service account (`eas-submit@humini-review.iam.gserviceaccount.com`) granted Release-manager (or Admin) access to the ReviewApp under Play Console → Users and permissions.
 - Tester email list created under Play Console → Internal testing → Testers.
 
-**iOS (reserved, not yet wired):**
+**iOS path (wired 2026-04-18, blocked 2026-04-19):**
 
-EAS Submit for iOS uses an App Store Connect API key, not a Google-style SA. When we add the iOS path:
+Status: the workflow is fully wired and credentials (ASC API team key) are in the vault. The **first-run signing bootstrap is still pending** — EAS cannot create a Distribution Certificate + store provisioning profile from a `--non-interactive` CI runner, so a one-time local `eas build --platform ios --profile production --local` must be run on a maintainer's Mac first to populate EAS's server-side credentials. After that run, CI dispatches will succeed. Until then, `profile=ios` workflows fail at the build step with *"Distribution Certificate is not validated for non-interactive builds"*.
 
-1. Generate a key under App Store Connect → Users and Access → **Integrations** (role: App Manager). Download the `.p8`.
-2. Add `ASC_API_KEY_ID` and `ASC_API_ISSUER_ID` under `##### GitHub Secrets #####` in `.env.dev`.
-3. Put the `.p8` at `infra/dev/vault/asc-api-key.p8` and declare `ASC_API_KEY_PATH=infra/dev/vault/asc-api-key.p8` under `##### GitHub Vault Files #####`.
-4. `task dev:sync:vault` pushes both — the file goes as base64, decoded by `.github/actions/hydrate-vault` at workflow start.
-5. Extend `deploy-mobile.yml` with an `ios` profile branch calling `eas build --platform ios` and `eas submit --platform ios`.
+Select `profile=ios` on the workflow dispatch; the job runs on `macos-latest`, builds an IPA via EAS, and optionally uploads to TestFlight via EAS Submit using an App Store Connect API team key.
 
-TestFlight **tester** enrolment is separate (App Store Connect → My Apps → ReviewApp → TestFlight → Internal Testing).
+Credentials flow through the same file-vault pattern as Play Store:
+
+- `.env.dev` strings: `APPLE_ID`, `APPLE_TEAM_ID`, `ASC_APP_ID`, `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID` — all under `##### GitHub Secrets #####`.
+- `.env.dev` vault file: `ASC_API_KEY_PATH=infra/dev/vault/asc-api-key.p8` under `##### GitHub Vault Files #####`. `task dev:sync:vault` pushes the `.p8` contents as `ASC_API_KEY_B64`.
+- The workflow base64-decodes `ASC_API_KEY_B64` into `apps/mobile/asc-api-key.p8` before `eas submit` runs. `apps/mobile/eas.json`'s iOS submit block references `./asc-api-key.p8` + `ascApiKeyId` + `ascApiIssuerId` (all committed — the key IDs are harmless without the `.p8`).
+
+To rotate: regenerate a Team Key at App Store Connect → Users and Access → **Integrations → App Store Connect API → Team Keys** (role: App Manager). Replace `infra/dev/vault/asc-api-key.p8`, update `ASC_API_KEY_ID` / `ASC_API_ISSUER_ID` in `.env.dev`, run `task dev:sync:vault`. Done.
+
+TestFlight **tester** enrolment is separate (App Store Connect → My Apps → ReviewApp → TestFlight → Internal Testing). The API key doesn't manage testers — only builds.
 
 ---
 

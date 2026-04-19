@@ -3,7 +3,7 @@
 **Product:** Every Individual is a Brand -- Portable Individual Review App  
 **Author:** Muthukumaran Navaneethakrishnan  
 **Date:** 2026-04-14  
-**Status:** Draft  
+**Status:** Partial — backend (checkout / webhook / cancel / getMe) implemented; frontend `BillingPage` shipped 2026-04-19; `change-plan` and `portal` endpoints still pending.  
 **References:** PRD 05 (Monetization), Spec 02 (Database Schema -- `subscriptions` table), Spec 03 (API Endpoints -- Subscription Module)
 
 ---
@@ -760,6 +760,88 @@ All tests use Vitest + Supertest. Stripe calls are mocked using `vi.mock('stripe
 | `concurrent checkout requests` | Only one succeeds, other gets 409 |
 | `Stripe API timeout` | Returns 503 with retry hint |
 | `polling reconciliation catches missed webhook` | Scheduled job corrects stale local state |
+
+---
+
+## 10a. Frontend UX (`apps/ui/src/pages/BillingPage.tsx`)
+
+Implemented 2026-04-19. The dashboard's `/billing` route shows the logged-in
+user a Stripe-backed plan picker. No `/api/v1/subscriptions/plans` endpoint
+exists today — the plan catalogue is hard-coded in `PLANS` inside the page
+and mirrors §1 of this spec. Keep them in sync if a price tier is added
+or removed.
+
+**Layout:**
+
+```
+NavBar
+─────────────────────────
+Heading: "Billing & plans"
+Error banner (conditional)            [data-testid="billing-error"]
+─────────────────────────
+Current plan card                     [data-testid="billing-current-plan"]
+  - tier (free | pro | employer | recruiter)
+  - status                            [data-testid="billing-status"]
+  - "Cancel subscription" button      [data-testid="billing-cancel-btn"]
+─────────────────────────
+Available plans grid (filtered by user.role)
+  Plan card  ×N                       [data-testid="billing-plan-card"]
+    - name, price, blurb
+    - CTA: Subscribe / Upgrade / Switch plan / Current plan
+                                      [data-testid="billing-upgrade-btn"]
+─────────────────────────
+Footer hint: dev test card 4242 4242 4242 4242
+```
+
+**Role → visible plan group:**
+
+| `user.role`   | Plans shown                                              |
+|---------------|----------------------------------------------------------|
+| `INDIVIDUAL`  | `pro_individual` monthly + annual                        |
+| `EMPLOYER`    | `employer_small`, `employer_medium`, `employer_large`    |
+| `RECRUITER`   | `recruiter_basic`, `recruiter_premium`                   |
+| `ADMIN`       | Individual catalogue (preview only)                      |
+
+**Wire flow:**
+
+1. Page mounts → React Query fetches `GET /api/v1/subscriptions/me`.
+2. User clicks a plan → `useMutation` posts to
+   `POST /api/v1/subscriptions/checkout` with
+   `{ tier, billingCycle, successUrl, cancelUrl, locationCount?, seatCount? }`.
+   Defaults: `locationCount = 1` for employer tiers, `seatCount = 1` for
+   recruiter tiers (multi-location / multi-seat editor is a follow-up).
+3. On success → `window.location.assign(checkoutUrl)` redirects to
+   Stripe-hosted Checkout. We do **not** use `@stripe/stripe-js` /
+   Elements — the redirect URL from the API is sufficient and avoids
+   pulling another dependency.
+4. After payment Stripe redirects back to
+   `${origin}/billing?status=success`. The page re-mounts, `me` query
+   refetches, current-plan card shows the new tier (provided the webhook
+   has already been processed — see §3 / §7.4).
+
+**Cancel** → `POST /api/v1/subscriptions/cancel` with `{ immediate: false }`,
+then invalidate the `['subscription', 'me']` query.
+
+**data-testid map:**
+
+| testid                    | Purpose                                            |
+|---------------------------|----------------------------------------------------|
+| `billing-root`            | Page root, used by Playwright to wait on mount     |
+| `billing-current-plan`    | Top card with current tier + status                |
+| `billing-status`          | The status string (`active`, `none`, …)            |
+| `billing-cancel-btn`      | Cancel-subscription button (only when active)      |
+| `billing-plan-card`       | Each plan tile in the grid                         |
+| `billing-upgrade-btn`     | The CTA button on every plan card                  |
+| `billing-error`           | Error banner shown on API failures                 |
+
+**Dev / test card:** `4242 4242 4242 4242`, any future expiry, any CVC
+(Stripe test mode — `pk_test_…` / `sk_test_…` are wired via `.env.dev`).
+
+**Regression coverage:** `apps/regression/src/flows/06-subscription.spec.ts`
+exercises login → /billing → plan render → POST /checkout returns a
+Stripe `checkoutUrl`. The full Stripe-iframe → webhook → `status=active`
+loop is parked under `test.fixme` because the cross-origin Stripe page is
+flaky in headless Chromium and CI lacks `stripe listen` forwarding.
 
 ---
 

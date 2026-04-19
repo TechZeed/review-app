@@ -1,0 +1,20 @@
+{
+  "name": "@reviewapp/regression",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "E2E regression suite against dev Cloud Run + Postgres (spec 25)",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "sweep": "tsx src/sweep.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0",
+    "@types/node": "^20.11.0",
+    "@types/pg": "^8.11.10",
+    "pg": "^8.13.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

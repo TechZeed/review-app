@@ -3,6 +3,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, createContext, useContext } from 'react';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import AdminPage from './pages/AdminPage';
+import BillingPage from './pages/BillingPage';
+import EmployerPage from './pages/EmployerPage';
+import RecruiterPage from './pages/RecruiterPage';
 import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 import { signOutUser } from './lib/auth-service';
@@ -48,6 +52,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Admins don't have an individual profile to render; redirect to /admin.
+function DashboardRoute() {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'ADMIN') return <Navigate to="/admin" replace />;
+  return <DashboardPage />;
+}
+
 function HomeRoute() {
   const mode = getUiHostMode();
   return <Navigate to={getDashboardHomePath(mode)} replace />;
@@ -84,7 +96,39 @@ export default function App() {
               path="/dashboard"
               element={
                 <ProtectedRoute>
-                  <DashboardPage />
+                  <DashboardRoute />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <AdminPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/billing"
+              element={
+                <ProtectedRoute>
+                  <BillingPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employer"
+              element={
+                <ProtectedRoute>
+                  <EmployerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/recruiter"
+              element={
+                <ProtectedRoute>
+                  <RecruiterPage />
                 </ProtectedRoute>
               }
             />

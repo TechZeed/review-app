@@ -17,9 +17,11 @@
         "releaseStatus": "draft"
       },
       "ios": {
-        "appleId": "${APPLE_ID}",
-        "ascAppId": "${ASC_APP_ID}",
-        "appleTeamId": "${APPLE_TEAM_ID}"
+        "ascAppId": "6762469762",
+        "appleTeamId": "LQY3DPEDZ9",
+        "ascApiKeyPath": "./asc-api-key.p8",
+        "ascApiKeyId": "44GKS6NTS2",
+        "ascApiKeyIssuerId": "69a6de93-86b4-47e3-e053-5b8c7c11a4d1"
       }
     }
   }

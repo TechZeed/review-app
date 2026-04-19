@@ -100,6 +100,43 @@ During `resolveAllSecrets()` at boot, iterate every env key ending in `_PATH`, r
 - **Push (`task dev:sync:vault`)**: for each `*_PATH` entry, read the file bytes, push to the matching store.
 - **Pull (`task dev:vault:pull`)**: for each `##### GCP Vault Files #####` entry, fetch the secret from GCP Secret Manager, write to the local path. Refuses to overwrite existing files without `--force`. GitHub vault files cannot be pulled (GH secrets are write-only).
 
+### Dev bundle — one-shot bootstrap (added 2026-04-19, d28)
+
+`task dev:vault:pull` only pulls GCP vault files and still leaves `.env.dev` missing. For a new teammate, both are needed before anything else works. The **dev bundle** packages `.env.dev` + the vault directory into a single Secret Manager secret so dev-env bootstrap is one command.
+
+`.env` (local dev) is **not** in the bundle — it's committed to the repo with a placeholder-only contract (see `.env` header). Local-only teammates don't need gcloud auth just to run `task local:*`.
+
+- **Secret name:** `review-dev-bundle` (in project `$GCP_PROJECT_ID`).
+- **Contents:** `tar czf - .env.dev infra/dev/vault/ | base64` — base64 wrap is required because `gcloud secrets versions access` corrupts raw gzip bytes via UTF-8 re-encoding on stdout.
+- **Script:** `infra/scripts/dev-bundle.ts` (bun). Project id resolves from, in order: `--project=<id>` flag → `$GCP_PROJECT_ID` env → `apps/api/config/application.dev.env` (committed, non-secret defaults) → `gcloud config get-value project`. So on a fresh clone `task dev:bundle:pull` works with zero flags — the committed project.env carries the identity.
+- **Tasks:**
+  - `task dev:bundle:push` — tars `.env.dev` + `infra/dev/vault/`, base64-encodes, uploads as a new version of `review-dev-bundle`. Creates the secret on first run.
+  - `task dev:bundle:pull -- --project=<id>` — fetches latest version, base64-decodes, untars at repo root. Overwrites existing files in place.
+- **IAM (per-secret, not project-wide):**
+
+  ```bash
+  gcloud secrets add-iam-policy-binding review-dev-bundle \
+    --member='user:alice@example.com' \
+    --role='roles/secretmanager.secretAccessor' \
+    --project=humini-review
+  ```
+
+  This scopes access to just this one secret, keeping other project secrets invisible to the grantee. Preferred over project-level `secretAccessor`.
+
+**New-dev bootstrap flow:**
+
+```bash
+git clone <repo>
+cd review-app
+gcloud auth login
+task dev:bundle:pull  # project id read from apps/api/config/application.dev.env
+# .env.dev + infra/dev/vault/* now in place — task dev:* commands work
+```
+
+**Rotation:** edit files locally → `task dev:bundle:push`. Previous version stays in Secret Manager history for rollback.
+
+**Size:** current bundle is ~10 KB raw, ~14 KB base64. Well under Secret Manager's 64 KB per-version cap. If the bundle ever grows past ~50 KB, move to a GCS object with versioning instead.
+
 ### `infra/scripts/deploy.js` changes
 
 When deploying an API service, scan `.env.dev` for the `##### GCP Vault Files #####` section. For each entry:

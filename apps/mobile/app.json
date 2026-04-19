@@ -2,7 +2,7 @@
   "expo": {
     "name": "ReviewApp",
     "slug": "reviewapp",
-    "owner": "${EXPO_OWNER}",
+    "owner": "deemwar",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -37,7 +37,7 @@
       },
       "package": "sg.reviewapp.app",
       "edgeToEdgeEnabled": true,
-      "versionCode": 10,
+      "versionCode": 13,
       "intentFilters": [
         {
           "action": "VIEW",
@@ -58,23 +58,23 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiUrl": "${MOBILE_API_URL}",
-      "webUrl": "${MOBILE_WEB_URL}",
-      "dashboardUrl": "${MOBILE_DASHBOARD_URL}",
+      "apiUrl": "https://review-api.teczeed.com",
+      "webUrl": "https://review-scan.teczeed.com",
+      "dashboardUrl": "https://review-dashboard.teczeed.com",
       "firebase": {
-        "apiKey": "${MOBILE_FIREBASE_API_KEY}",
-        "authDomain": "${MOBILE_FIREBASE_AUTH_DOMAIN}",
-        "projectId": "${MOBILE_FIREBASE_PROJECT_ID}",
-        "messagingSenderId": "${MOBILE_FIREBASE_MESSAGING_SENDER_ID}",
-        "appId": "${MOBILE_FIREBASE_APP_ID}"
+        "apiKey": "AIzaSyBAQ3fKCEiCn-z7VPG9jEzQ-XA9rCWBvhE",
+        "authDomain": "humini-review.firebaseapp.com",
+        "projectId": "humini-review",
+        "messagingSenderId": "1049089489429",
+        "appId": "1:1049089489429:web:5f0ab182785d1cf3f22c1c"
       },
       "googleOAuth": {
-        "webClientId": "${GOOGLE_OAUTH_WEB_CLIENT_ID}",
-        "iosClientId": "${GOOGLE_OAUTH_IOS_CLIENT_ID}",
-        "androidClientId": "${GOOGLE_OAUTH_ANDROID_CLIENT_ID}"
+        "webClientId": "1049089489429-2n7868rmb7dd61v6ts60mpa6ou85dvm8.apps.googleusercontent.com",
+        "iosClientId": "1049089489429-5nabqo94gjt8f6pqmr4lvscrdg78f9ug.apps.googleusercontent.com",
+        "androidClientId": "1049089489429-shi0v29s58ls0984l6mn6ek7c7r9535t.apps.googleusercontent.com"
       },
       "eas": {
-        "projectId": "${EXPO_PROJECT_ID}"
+        "projectId": "0a16994f-a788-4021-bd41-ad1afed8da3f"
       }
     }
   }

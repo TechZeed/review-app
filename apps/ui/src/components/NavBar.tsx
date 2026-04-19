@@ -6,9 +6,16 @@ export default function NavBar() {
   const { user, logout } = useAuth();
   const location = useLocation();
 
-  const navItems = [
-    { path: '/dashboard', label: 'Dashboard' },
-  ];
+  const role = user?.role;
+  const navItems: { path: string; label: string }[] = [];
+  if (role === 'ADMIN') {
+    navItems.push({ path: '/admin', label: 'Admin' });
+  } else if (role) {
+    navItems.push({ path: '/dashboard', label: 'Dashboard' });
+  }
+  if (role === 'EMPLOYER' || role === 'ADMIN') navItems.push({ path: '/employer', label: 'Employer' });
+  if (role === 'RECRUITER' || role === 'ADMIN') navItems.push({ path: '/recruiter', label: 'Recruiter' });
+  if (role) navItems.push({ path: '/billing', label: 'Billing' });
 
   return (
     <nav
@@ -19,7 +26,7 @@ export default function NavBar() {
         <div className="flex items-center justify-between h-16 gap-2">
           <div className="flex items-center gap-4 md:gap-8 min-w-0">
             <Link
-              to="/dashboard"
+              to={user?.role === 'ADMIN' ? '/admin' : '/dashboard'}
               className="text-xl font-bold text-gray-900 shrink-0"
             >
               ReviewApp

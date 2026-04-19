@@ -3,7 +3,7 @@
 **Product:** Every Individual is a Brand -- Portable Individual Review App
 **Author:** Muthukumaran Navaneethakrishnan
 **Date:** 2026-04-14
-**Status:** Draft
+**Status:** Backend Implemented · Frontend v1 Shipped (search + filters + contact dialog)
 **PRD References:** PRD-05 (Monetization -- Recruiter Access tier)
 **Spec References:** Spec 02 (Database Schema -- profiles, recruiter_searches), Spec 03 (API Endpoints -- Recruiter Module)
 
@@ -1417,3 +1417,76 @@ describe('Saved Searches', () => {
 - **LATERAL joins:** The three LATERAL subqueries (verified_stats, recency_stats, media_stats) execute per-profile. At high volume, consider materializing these as columns on the profiles table (updated via triggers or async workers).
 - **Materialization trigger:** If search p95 latency exceeds 300ms, add materialized columns: `verified_rate`, `recent_review_count`, `has_rich_media` to the profiles table, updated on each review submission.
 - **Connection pooling:** Search queries should use a read replica connection if available, to avoid contention with write operations.
+
+---
+
+## 13. Frontend UX (apps/ui — `/recruiter`)
+
+### 13.1 Route + role gate
+
+`/recruiter` is gated to `RECRUITER` and `ADMIN` roles via the page-level
+`useAuth()` guard in `apps/ui/src/pages/RecruiterPage.tsx`. Unauthed → `/login`,
+wrong-role → `/dashboard`. Reuses `NavBar`, `AuthContext`, React Query.
+
+### 13.2 Layout
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│ NavBar                                                         │
+├────────────────────────────────────────────────────────────────┤
+│ H1 "Recruiter search"                                          │
+│ ┌────────────────────────────────────────────────────────────┐ │
+│ │ <input> recruiter-search-input  (debounced 300ms)          │ │
+│ └────────────────────────────────────────────────────────────┘ │
+│ ┌──────────┐  ┌──────────────────────────────────────────────┐ │
+│ │ Filters  │  │ Result list (recruiter-results)              │ │
+│ │  qualities│  │  ┌────────────────────────────────────────┐ │ │
+│ │  industry│  │  │ Name · slug · headline · top qualities │ │ │
+│ │  min reviews│ │  │                       [Contact]        │ │ │
+│ │          │  │  └────────────────────────────────────────┘ │ │
+│ │          │  │  …                                           │ │
+│ └──────────┘  │  Empty state when results.length == 0       │ │
+│               └──────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────┘
+```
+
+Contact button opens a modal dialog (subject, hiring role, company name,
+message) that POSTs `/api/v1/recruiter/contact/:profileId`.
+
+### 13.3 Data flow
+
+| Action | API call |
+|--------|----------|
+| Search (debounced) | `POST /api/v1/recruiter/search` with `{ query, industries, qualities, minReviewCount, limit: 20 }` |
+| Send contact | `POST /api/v1/recruiter/contact/:profileId` with `{ subject, message, hiringRole, companyName }` |
+
+The query body is memoized; React Query keys on `['recruiter','search', body]`
+so identical filters dedupe. Quality filter ships as `{ quality, minPercentage: 10 }`
+— a deliberately permissive default. Industry is a single-select v1; multi-select
+is a follow-up.
+
+### 13.4 testid map
+
+| testid | Purpose |
+|--------|---------|
+| `recruiter-root` | Page root (smoke + role-guard assertions) |
+| `recruiter-search-input` | Free-text query box |
+| `recruiter-filter-quality-<expertise|care|delivery|initiative|trust>` | Quality multi-select checkbox |
+| `recruiter-filter-industry` | Industry `<select>` |
+| `recruiter-results` | Result list container |
+| `recruiter-empty` | Empty-state card (no matches) |
+| `recruiter-error` | Search error banner |
+| `recruiter-result-row` | One result `<li>` per matched profile |
+| `recruiter-contact-btn` | Per-row "Contact" button (opens dialog) |
+| `recruiter-contact-dialog` | Contact modal root |
+| `recruiter-contact-submit` | Contact dialog submit button |
+
+### 13.5 Regression coverage
+
+`apps/regression/src/flows/09-recruiter.spec.ts` covers:
+
+- Rachel (RECRUITER) lands on `/recruiter`, sees input + filters
+- Typing `"sales"` returns at least one result (matches Ramesh / auto-sales)
+- Clearing the query does not error
+- Admin can reach `/recruiter`
+- Priya (INDIVIDUAL) is bounced to `/dashboard`
