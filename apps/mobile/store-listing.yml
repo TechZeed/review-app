@@ -1,0 +1,29 @@
+language: en-GB
+title: ReviewApp
+shortDescription: >-
+  Every individual is a brand. Your reviews, portable for life.
+fullDescription: |
+  ReviewApp is the portable reputation platform for frontline workers — salespeople, nurses, hotel staff, bank relationship managers, retail associates, servers. Today, customer praise flows to the business ("5 stars for XYZ Dealership"), not the person who actually delivered the experience. ReviewApp inverts that: the individual owns the profile, the employer is a guest, and the reputation is portable forever.
+
+  Every individual is a brand.
+
+  How it works:
+
+  • Create your profile in under two minutes. Sign in, add a photo, and you get a personal QR code that belongs to you, not to any employer.
+  • Customers scan the QR code after you help them and leave a review in under ten seconds. No app install, no account, no login for the reviewer — they just tap.
+  • Reviews use the Five Qualities framework — Expertise, Care, Delivery, Initiative, Trust — adapted from the SERVQUAL research model. Customers tap the one or two qualities that stood out, confirm with a thumbs up, and optionally leave a voice note, short video, or one-line comment.
+  • Reviews attach to you, not your employer. When you change jobs, every review you have earned travels with you. Your profile is a lifelong, cumulative professional asset.
+
+  Built for frontline reality:
+
+  • Organisations are guests. An employer can tag themselves onto your profile to see your reviews on their dashboard, but they cannot edit or delete anything. You can untag them any time — the reviews stay with you.
+  • Share your profile link on a resume, a LinkedIn bio, an email signature. A recruiter sees customer-verified proof of quality, not self-reported claims.
+  • Anti-fraud built in — device fingerprinting, review cooldowns, and OTP-gated submissions keep the signal clean.
+
+  This is the anti-LinkedIn thesis: LinkedIn is what you say about yourself. ReviewApp is what your customers say about you.
+
+  Built by Arus Innovation Pte Ltd.
+contactEmail: elan@arusinnovation.com
+contactWebsite: https://teczeed.com
+privacyPolicyUrl: https://review-scan.teczeed.com/privacy
+defaultLanguage: en-GB
