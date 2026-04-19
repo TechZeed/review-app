@@ -2,8 +2,8 @@
 
 **Product:** Every Individual is a Brand -- Portable Individual Review App
 **Author:** Muthukumaran Navaneethakrishnan
-**Date:** 2026-04-14
-**Status:** Draft
+**Date:** 2026-04-14 (amended 2026-04-19 — seed-password wiring made real + no-fallback)
+**Status:** Implemented
 **Pattern:** Umzug migration-style seeds (following iepapp pattern)
 
 ---
@@ -18,7 +18,7 @@ This spec defines the seed data strategy for the review-app. Seed data provides 
 - **Realistic distributions:** Review counts, quality pick ratios, media types, and timestamps reflect real-world patterns -- not uniform distributions.
 - **FK-safe ordering:** Seed inserts respect foreign key constraints. Teardown deletes in reverse FK order.
 - **Idempotent:** Seeds check for existing data before inserting. Running seeds twice does not duplicate data.
-- **Portable credentials:** A single `DEFAULT_SEED_PASSWORD` environment variable controls all demo user passwords.
+- **Portable credentials:** A single `DEFAULT_SEED_PASSWORD` env var is bcrypt-hashed into every seeded user's `password_hash`, with `provider='internal'` set so the email+password login path (spec 16) accepts them. **No fallback** — the seed throws if the env var is unset. Required in `.env`, `.env.dev`, `.env.test`. Consumed by the regression suite (spec 24).
 
 ---
 
@@ -721,8 +721,11 @@ function assignReviewsToMonths(totalReviews: number): number[] {
 
 export const up: Migration = async ({ context: sequelize }) => {
   const queryInterface = sequelize.getQueryInterface();
-  const password = process.env.DEFAULT_SEED_PASSWORD || "Demo123";
-  const passwordHash = await bcrypt.hash(password, 12);
+  const password = process.env.DEFAULT_SEED_PASSWORD;
+  if (!password) {
+    throw new Error("DEFAULT_SEED_PASSWORD must be set — required to seed demo user passwords.");
+  }
+  const passwordHash = await bcrypt.hash(password, 10);
   const now = new Date();
 
   // Idempotency check
@@ -1181,7 +1184,7 @@ npm run seed:reset
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DEFAULT_SEED_PASSWORD` | `Demo123` | Password for all demo user accounts |
+| `DEFAULT_SEED_PASSWORD` | *(no default — required)* | Plaintext password bcrypt-hashed into every demo user's `password_hash`. Seed throws if unset. Set in `.env`, `.env.dev`, `.env.test`. |
 | `DATABASE_URL` | -- | PostgreSQL connection string |
 
 ### Idempotency
@@ -1209,4 +1212,4 @@ After seeding, verify the following:
 - [ ] Ramesh has Pro subscription, James has Employer Dashboard, Rachel has Recruiter Access
 - [ ] All timestamps fall within the last 6 months
 - [ ] Ramesh's profile shows reviews spanning 3 different organizations
-- [ ] All demo users can log in with `DEFAULT_SEED_PASSWORD`
+- [ ] All demo users can log in with `DEFAULT_SEED_PASSWORD` (email+password path, `provider='internal'`)

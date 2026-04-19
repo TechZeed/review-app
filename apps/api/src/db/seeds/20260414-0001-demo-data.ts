@@ -1,5 +1,6 @@
 import { faker } from "@faker-js/faker";
 import { QueryTypes } from "sequelize";
+import bcrypt from "bcrypt";
 import type { Migration } from "../umzug.js";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
@@ -149,6 +150,14 @@ export const up: Migration = async ({ context: sequelize }) => {
   // -------------------------------------------------------
   const userIds: Record<string, string> = {};
 
+  // Demo users get a bcrypt-hashed password so regression tests can log in
+  // via email+password. One hash shared by all demo users (seed-only).
+  const seedPassword = process.env.DEFAULT_SEED_PASSWORD;
+  if (!seedPassword) {
+    throw new Error("DEFAULT_SEED_PASSWORD must be set — required to seed demo user passwords.");
+  }
+  const passwordHash = await bcrypt.hash(seedPassword, 10);
+
   const usersData = users.map((user) => {
     const id = faker.string.uuid();
     userIds[user.email] = id;
@@ -161,6 +170,8 @@ export const up: Migration = async ({ context: sequelize }) => {
       role: user.role,
       status: user.status,
       avatar_url: null,
+      provider: "internal",
+      password_hash: passwordHash,
       last_login_at: now,
       created_at: now,
       updated_at: now,
