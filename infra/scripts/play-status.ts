@@ -20,21 +20,7 @@
  *   bun run infra/scripts/play-status.ts --track internal
  */
 
-import { readFileSync } from "node:fs";
-import { createSign } from "node:crypto";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const SA_PATH = resolve(REPO_ROOT, "infra/dev/vault/eas-submit-sa.json");
-
-const DEFAULT_PACKAGE = "sg.reviewapp.app";
-
-interface ServiceAccount {
-  client_email: string;
-  private_key: string;
-  token_uri: string;
-}
+import { DEFAULT_PACKAGE, loadServiceAccount, getAccessToken } from "./play-auth.ts";
 
 function parseArgs(argv: string[]): { package: string; track: string | null } {
   const out = { package: DEFAULT_PACKAGE, track: null as string | null };
@@ -44,41 +30,6 @@ function parseArgs(argv: string[]): { package: string; track: string | null } {
     if (k === "--track") out.track = v || "";
   }
   return out;
-}
-
-function b64url(buf: Buffer | string): string {
-  return Buffer.from(buf).toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
-}
-
-async function getAccessToken(sa: ServiceAccount): Promise<string> {
-  const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const now = Math.floor(Date.now() / 1000);
-  const claims = {
-    iss: sa.client_email,
-    scope: "https://www.googleapis.com/auth/androidpublisher",
-    aud: sa.token_uri,
-    exp: now + 3600,
-    iat: now,
-  };
-  const payload = b64url(JSON.stringify(claims));
-  const signer = createSign("RSA-SHA256");
-  signer.update(`${header}.${payload}`);
-  const signature = b64url(signer.sign(sa.private_key));
-  const jwt = `${header}.${payload}.${signature}`;
-
-  const res = await fetch(sa.token_uri, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: jwt,
-    }),
-  });
-  const body = (await res.json()) as { access_token?: string; error?: string; error_description?: string };
-  if (!body.access_token) {
-    throw new Error(`token exchange failed: ${body.error} — ${body.error_description ?? "no detail"}`);
-  }
-  return body.access_token;
 }
 
 async function api<T>(token: string, path: string): Promise<T> {
@@ -130,7 +81,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.package) throw new Error("--package required");
 
-  const sa = JSON.parse(readFileSync(SA_PATH, "utf-8")) as ServiceAccount;
+  const sa = loadServiceAccount();
   const token = await getAccessToken(sa);
 
   console.log(`🔑 authed as ${sa.client_email}`);
@@ -167,6 +118,22 @@ async function main() {
           console.log(`  short description: ${l.shortDescription ? l.shortDescription.slice(0, 80) : "(empty)"}`);
           console.log(`  full description:  ${l.fullDescription ? `${l.fullDescription.length} chars` : "(empty)"}`);
         }
+      }
+    } catch (e: any) {
+      console.log(`(failed: ${e.message})`);
+    }
+
+    // ── Listing images ──────────────────────────────────────────
+    header("listing images (en-GB)");
+    try {
+      for (const kind of ["icon", "featureGraphic", "phoneScreenshots"] as const) {
+        const imgs = await api<{ images?: Array<{ id: string }> }>(
+          token,
+          `/androidpublisher/v3/applications/${args.package}/edits/${editId}/listings/en-GB/${kind}`,
+        );
+        const n = imgs.images?.length ?? 0;
+        const mark = kind === "phoneScreenshots" ? (n >= 2 ? "✓" : "⚠️") : n >= 1 ? "✓" : "⚠️";
+        console.log(`  ${mark} ${kind.padEnd(18)} ${n} image${n === 1 ? "" : "s"}`);
       }
     } catch (e: any) {
       console.log(`(failed: ${e.message})`);

@@ -158,6 +158,18 @@ tasks:
     desc: Query Play Console (via eas-submit SA) for app identity, listings, and track releases
     cmd: bun run {{.REPO_ROOT}}/infra/scripts/play-status.ts {{.CLI_ARGS}}
 
+  play:listing:push:
+    desc: Push apps/mobile/store-listing.yml to Play Console (text fields + privacy policy)
+    cmd: bun run {{.REPO_ROOT}}/infra/scripts/play-listing-push.ts {{.CLI_ARGS}}
+
+  play:images:push:
+    desc: Upload apps/mobile/store-assets/* to Play Console (icon, feature graphic, screenshots)
+    cmd: bun run {{.REPO_ROOT}}/infra/scripts/play-images-push.ts {{.CLI_ARGS}}
+
+  play:assets:regenerate:
+    desc: Regenerate Play Store assets (icon, feature graphic, screenshots) into apps/mobile/store-assets/
+    cmd: bun run {{.REPO_ROOT}}/infra/scripts/capture-store-screenshots.ts {{.CLI_ARGS}}
+
   # ─── Status ──────────────────────────────────────────────────────────────────
 
   status:
