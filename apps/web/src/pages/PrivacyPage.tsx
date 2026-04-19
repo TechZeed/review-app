@@ -1,5 +1,5 @@
 const LAST_UPDATED = "19 April 2026";
-const CONTACT_EMAIL = "joe@arusinnovation.com";
+const CONTACT_EMAIL = "elan@arusinnovation.com";
 const COMPANY = "Arus Innovation";
 
 export default function PrivacyPage() {
