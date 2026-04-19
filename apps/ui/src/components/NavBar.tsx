@@ -6,10 +6,16 @@ export default function NavBar() {
   const { user, logout } = useAuth();
   const location = useLocation();
 
-  const navItems =
-    user?.role === 'ADMIN'
-      ? [{ path: '/admin', label: 'Admin' }]
-      : [{ path: '/dashboard', label: 'Dashboard' }];
+  const role = user?.role;
+  const navItems: { path: string; label: string }[] = [];
+  if (role === 'ADMIN') {
+    navItems.push({ path: '/admin', label: 'Admin' });
+  } else if (role) {
+    navItems.push({ path: '/dashboard', label: 'Dashboard' });
+  }
+  if (role === 'EMPLOYER' || role === 'ADMIN') navItems.push({ path: '/employer', label: 'Employer' });
+  if (role === 'RECRUITER' || role === 'ADMIN') navItems.push({ path: '/recruiter', label: 'Recruiter' });
+  if (role) navItems.push({ path: '/billing', label: 'Billing' });
 
   return (
     <nav

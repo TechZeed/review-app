@@ -4,6 +4,9 @@ import { useState, createContext, useContext } from 'react';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import AdminPage from './pages/AdminPage';
+import BillingPage from './pages/BillingPage';
+import EmployerPage from './pages/EmployerPage';
+import RecruiterPage from './pages/RecruiterPage';
 import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 import { signOutUser } from './lib/auth-service';
@@ -102,6 +105,30 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <AdminPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/billing"
+              element={
+                <ProtectedRoute>
+                  <BillingPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employer"
+              element={
+                <ProtectedRoute>
+                  <EmployerPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/recruiter"
+              element={
+                <ProtectedRoute>
+                  <RecruiterPage />
                 </ProtectedRoute>
               }
             />
