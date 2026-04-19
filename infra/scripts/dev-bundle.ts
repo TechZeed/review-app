@@ -21,11 +21,28 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
+import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const SECRET_NAME = "review-dev-bundle";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const PROJECT_DEFAULTS_FILE = resolve(REPO_ROOT, "infra/dev/project.env");
+
+// Non-secret project identity lives in infra/dev/project.env (committed).
+// Used as a fallback when GCP_PROJECT_ID isn't in the caller env — lets
+// `dev:bundle:pull` work from a fresh clone with zero flags.
+function readProjectDefaults(): Record<string, string> {
+  if (!existsSync(PROJECT_DEFAULTS_FILE)) return {};
+  const out: Record<string, string> = {};
+  for (const line of readFileSync(PROJECT_DEFAULTS_FILE, "utf-8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq > 0) out[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
+  }
+  return out;
+}
 
 function die(msg: string): never {
   console.error(`✗ ${msg}`);
@@ -72,8 +89,8 @@ async function pipeAB(from: ReturnType<typeof spawn>, to: ReturnType<typeof spaw
 }
 
 async function push(): Promise<void> {
-  const project = process.env.GCP_PROJECT_ID;
-  if (!project) die("GCP_PROJECT_ID not set (Taskfile loads .env.dev — run via `task dev:bundle:push`)");
+  const project = process.env.GCP_PROJECT_ID || readProjectDefaults().GCP_PROJECT_ID;
+  if (!project) die("GCP_PROJECT_ID not set — add it to infra/dev/project.env or .env.dev");
 
   if (!secretExists(project)) {
     console.log(`Secret ${SECRET_NAME} not found — creating under project ${project}`);
@@ -83,6 +100,7 @@ async function push(): Promise<void> {
   console.log(`→ Packing .env.dev + infra/dev/vault/ …`);
   // gcloud's stdout text-encoding corrupts raw gzip bytes on retrieval,
   // so we base64-wrap the tarball. Harmless on push; decoded on pull.
+  // `.env` is NOT in the bundle — it's committed as placeholder-only (d28).
   const tar = spawn("tar", ["czf", "-", ".env.dev", "infra/dev/vault/"], { cwd: REPO_ROOT });
   const base64 = spawn("base64", [], { stdio: ["pipe", "pipe", "inherit"] });
   const gcloud = spawn(
@@ -102,9 +120,13 @@ async function push(): Promise<void> {
 }
 
 async function pull(argv: string[]): Promise<void> {
-  const project = parseProjectFlag(argv) || process.env.GCP_PROJECT_ID || gcloudProjectFromConfig();
+  const project =
+    parseProjectFlag(argv) ||
+    process.env.GCP_PROJECT_ID ||
+    readProjectDefaults().GCP_PROJECT_ID ||
+    gcloudProjectFromConfig();
   if (!project) {
-    die("No project id. Pass --project=<id>, set GCP_PROJECT_ID, or run `gcloud config set project <id>`.");
+    die("No project id. Pass --project=<id>, set GCP_PROJECT_ID, add to infra/dev/project.env, or `gcloud config set project <id>`.");
   }
 
   console.log(`→ Fetching ${SECRET_NAME} from project ${project} …`);

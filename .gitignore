@@ -5,7 +5,9 @@ node_modules/
 dist/
 
 # Environment files
-.env
+#   .env — local dev, COMMITTED. Contract: placeholder/mock values ONLY.
+#          Never put real secrets here — see huddle decision d28 (2026-04-19).
+#   .env.dev — real dev secrets, gitignored, bootstrap via `task dev:bundle:pull`.
 .env.dev
 .env.staging
 .env.production
