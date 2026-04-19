@@ -31,10 +31,13 @@ export const up: Migration = async ({ context: sequelize }) => {
     `);
   }
 
+  // Postgres rejects NOW() in partial-index predicates (not IMMUTABLE).
+  // A plain composite index on (user_id, capability, expires_at) covers the
+  // hot `isActive` lookup well enough — planner can use it for equality on
+  // the first two cols and range filter on expires_at. Cheap on rows.
   await sequelize.query(`
     CREATE INDEX IF NOT EXISTS idx_user_capabilities_user_active
-      ON user_capabilities (user_id, capability)
-      WHERE expires_at IS NULL OR expires_at > NOW();
+      ON user_capabilities (user_id, capability, expires_at);
   `);
 };
 
