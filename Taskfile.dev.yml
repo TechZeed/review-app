@@ -138,6 +138,16 @@ tasks:
     desc: Upload .env.dev + infra/dev/vault/ to GCP Secret Manager as review-dev-bundle
     cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/scripts/dev-bundle.ts push
 
+  test:regression:
+    desc: Run E2E regression suite against dev (spec 25)
+    dir: "{{.REPO_ROOT}}/apps/regression"
+    cmd: set -a && . {{.REPO_ROOT}}/.env.regression && set +a && npx playwright test --config={{.REPO_ROOT}}/apps/regression/playwright.config.ts {{.CLI_ARGS}}
+
+  test:regression:smoke:
+    desc: Regression smoke only (API reachable + seeded login works)
+    dir: "{{.REPO_ROOT}}/apps/regression"
+    cmd: set -a && . {{.REPO_ROOT}}/.env.regression && set +a && npx playwright test --config={{.REPO_ROOT}}/apps/regression/playwright.config.ts --project=smoke
+
   bundle:pull:
     desc: Fetch review-dev-bundle from GCP Secret Manager (falls back to `gcloud config` project) and unpack into repo root
     cmd: bun run {{.REPO_ROOT}}/infra/scripts/dev-bundle.ts pull {{.CLI_ARGS}}
