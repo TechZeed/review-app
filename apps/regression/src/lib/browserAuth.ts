@@ -45,6 +45,23 @@ export async function primeDashboardSession(
   const api = await request.newContext({ baseURL: apiUrl });
   try {
     const { accessToken, user } = await loginAs(api, email);
+    // Spec 28 — `auth_user.capabilities: string[]` is required by the new
+    // capability-aware NavBar + page guards. Fetch /subscriptions/me to
+    // populate it; fall back to `[]` so a 500 (e.g. transient backend
+    // hiccup) doesn't cascade into test-harness noise.
+    let capabilities: string[] = [];
+    try {
+      const meRes = await api.get("/api/v1/subscriptions/me", {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      if (meRes.ok()) {
+        const me = await meRes.json();
+        const caps: Array<{ capability: string }> = me?.capabilities ?? [];
+        capabilities = caps.map((c) => c.capability).filter((c): c is string => !!c);
+      }
+    } catch {
+      // Non-fatal — leave capabilities as [].
+    }
     const authUser = {
       token: accessToken,
       id: user.id,
@@ -52,6 +69,7 @@ export async function primeDashboardSession(
       role: user.role,
       name: (user as any).name ?? "",
       profile_slug: "",
+      capabilities,
     };
     // App.tsx reads auth_user on mount (useState initializer). We need the
     // value present before first render, so navigate to a blank page on

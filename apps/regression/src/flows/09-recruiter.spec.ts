@@ -1,5 +1,11 @@
-import { test, expect, request } from "@playwright/test";
+import { test, expect, request, type APIRequestContext } from "@playwright/test";
+import { loginAs } from "../lib/auth.js";
 import { primeDashboardSession } from "../lib/browserAuth.js";
+import {
+  adminGrantCapability,
+  adminListUsers,
+  adminRevokeCapability,
+} from "../lib/adminApi.js";
 
 // Recruiter UI smoke. Seeded rachel@reviewapp.demo (role RECRUITER) lands
 // on /recruiter, sees the search input + filters, can run a query against
@@ -15,6 +21,31 @@ import { primeDashboardSession } from "../lib/browserAuth.js";
 const API_URL = process.env.REGRESSION_API_URL ?? "https://review-api.teczeed.com";
 
 test.describe("recruiter page", () => {
+  // Spec 28 §10: RecruiterPage guard is capability-based, not role-based.
+  // Rachel has role=RECRUITER but no `recruiter` capability backfilled,
+  // so admin-grant for the suite duration.
+  let suiteApi: APIRequestContext;
+  let suiteAdminToken: string;
+  let rachelId: string | null = null;
+
+  test.beforeAll(async () => {
+    suiteApi = await request.newContext({ baseURL: API_URL });
+    const { accessToken } = await loginAs(suiteApi, "admin@reviewapp.demo");
+    suiteAdminToken = accessToken;
+    const { users } = await adminListUsers(suiteApi, suiteAdminToken);
+    rachelId = users.find((u) => u.email === "rachel@reviewapp.demo")?.id ?? null;
+    if (rachelId) {
+      await adminGrantCapability(suiteApi, suiteAdminToken, rachelId, "recruiter", "regression-suite");
+    }
+  });
+
+  test.afterAll(async () => {
+    if (rachelId) {
+      await adminRevokeCapability(suiteApi, suiteAdminToken, rachelId, "recruiter").catch(() => {});
+    }
+    await suiteApi.dispose();
+  });
+
   test("recruiter sees search input + filters and can search", async ({ page }) => {
     // primeDashboardSession waits for `dashboard-root` which the
     // RecruiterPage internal guard will leave us on (DashboardRoute
@@ -91,11 +122,20 @@ test.describe("recruiter page", () => {
     await expect(page.getByTestId("recruiter-root")).toBeVisible({ timeout: 15_000 });
   });
 
-  test("non-recruiter (priya) bounced to /dashboard", async ({ page }) => {
+  test("non-recruiter (priya) bounced to /billing", async ({ page }) => {
+    // Defensive: make sure no prior run left priya with a `recruiter`
+    // capability — otherwise she wouldn't bounce.
+    const { users } = await adminListUsers(suiteApi, suiteAdminToken);
+    const priyaId = users.find((u) => u.email === "priya@reviewapp.demo")?.id;
+    if (priyaId) {
+      await adminRevokeCapability(suiteApi, suiteAdminToken, priyaId, "recruiter").catch(() => {});
+    }
+
     await page.goto("/login");
     await primeDashboardSession(page, "priya@reviewapp.demo");
     await page.goto("/recruiter");
-    // Priya is INDIVIDUAL → RecruiterPage internal guard sends her back.
-    await page.waitForURL(/\/dashboard$/, { timeout: 10_000 });
+    // Spec 28 §10 — RecruiterPage guard now sends users without the
+    // `recruiter` capability to /billing (was /dashboard pre-spec-28).
+    await page.waitForURL(/\/billing$/, { timeout: 15_000 });
   });
 });

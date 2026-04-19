@@ -36,10 +36,15 @@ test.describe("billing page (browser)", () => {
     // Current-plan card always renders (free tier if no subscription).
     await expect(page.getByTestId("billing-current-plan")).toBeVisible();
 
-    // Employer plans grid: small / medium / large = 3 cards.
+    // Post-spec-28 the plan picker is no longer role-filtered — every
+    // authenticated user sees all 7 plans (2 individual + 3 employer +
+    // 2 recruiter). Assert the full count + that each tier group is
+    // rendered.
     const cards = page.getByTestId("billing-plan-card");
-    await expect(cards).toHaveCount(3, { timeout: 10_000 });
-    await expect(cards.first()).toContainText(/Employer/i);
+    await expect(cards).toHaveCount(7, { timeout: 10_000 });
+    await expect(page.getByTestId("billing-group-individual")).toBeVisible();
+    await expect(page.getByTestId("billing-group-employer")).toBeVisible();
+    await expect(page.getByTestId("billing-group-recruiter")).toBeVisible();
 
     // Intercept the checkout POST so we can stop the redirect cleanly
     // (we don't want this test to actually navigate to Stripe).

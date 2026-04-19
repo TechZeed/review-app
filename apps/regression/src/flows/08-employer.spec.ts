@@ -1,5 +1,13 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, request, type APIRequestContext } from "@playwright/test";
+import { loginAs } from "../lib/auth.js";
 import { primeDashboardSession } from "../lib/browserAuth.js";
+import {
+  adminGrantCapability,
+  adminListUsers,
+  adminRevokeCapability,
+} from "../lib/adminApi.js";
+
+const API_URL = process.env.REGRESSION_API_URL ?? "https://review-api.teczeed.com";
 
 // Employer dashboard UI smoke (spec 13).
 //
@@ -14,6 +22,31 @@ import { primeDashboardSession } from "../lib/browserAuth.js";
 // visible — the row count is data-dependent and may be zero.
 
 test.describe("employer page", () => {
+  // Spec 28 §10: EmployerPage now requires the `employer` capability
+  // (or ADMIN role). The dev seed doesn't backfill james with the
+  // capability, so we admin-grant it for the duration of the suite.
+  let api: APIRequestContext;
+  let adminToken: string;
+  let jamesId: string | null = null;
+
+  test.beforeAll(async () => {
+    api = await request.newContext({ baseURL: API_URL });
+    const { accessToken } = await loginAs(api, "admin@reviewapp.demo");
+    adminToken = accessToken;
+    const { users } = await adminListUsers(api, adminToken);
+    jamesId = users.find((u) => u.email === "james@reviewapp.demo")?.id ?? null;
+    if (jamesId) {
+      await adminGrantCapability(api, adminToken, jamesId, "employer", "regression-suite");
+    }
+  });
+
+  test.afterAll(async () => {
+    if (jamesId) {
+      await adminRevokeCapability(api, adminToken, jamesId, "employer").catch(() => {});
+    }
+    await api.dispose();
+  });
+
   test("employer lands on /employer with all three tabs and references default", async ({ page }) => {
     await page.goto("/login");
     await primeDashboardSession(page, "james@reviewapp.demo").catch(() => {
@@ -52,7 +85,8 @@ test.describe("employer page", () => {
     await page.goto("/login");
     await primeDashboardSession(page, "ramesh@reviewapp.demo");
     await page.goto("/employer");
-    // EmployerPage internal guard sends INDIVIDUAL to /dashboard.
-    await page.waitForURL(/\/dashboard$/, { timeout: 10_000 });
+    // Spec 28 §10 — EmployerPage guard now sends users without the
+    // `employer` capability to /billing (was /dashboard pre-spec-28).
+    await page.waitForURL(/\/billing$/, { timeout: 10_000 });
   });
 });
