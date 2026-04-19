@@ -1,222 +1,183 @@
-# Spec 29 — Play Console CLI & Release Debugging
+# Spec 29 — Play Console CLI Tooling
 
 **Project:** ReviewApp
 **Repo:** TechZeed/review-app
-**Date:** 2026-04-19
-**Status:** Implemented (read CLI + full push flow — text, images, listing assets)
-**Related:** Spec 17 (GitHub workflows — mobile pipeline), Spec 22 (file vault pattern — SA key lives here).
+**Date:** 2026-04-19 (split 2026-04-19 — listing-content carved out to spec 30)
+**Status:** Implemented
+**Related:** Spec 17 (GitHub workflows — mobile pipeline), Spec 22 (file vault pattern), **Spec 30** (store listing content as code).
 
 ---
 
 ## 1. Problem
 
-`deploy-mobile.yml` submits AABs to Play Internal via EAS Submit, but we had **no programmatic visibility** into what actually landed on Play afterwards. Every status check meant opening `play.google.com/console` and clicking through app → release → track → detail. Symptoms this caused:
+`deploy-mobile.yml` submits AABs to Play Internal via EAS Submit, but we had **no programmatic visibility** into what actually landed on Play afterwards, and no way to manage the listing itself from source control. Every status check meant opening `play.google.com/console`; every listing change meant clicking through a web UI; every screenshot regeneration was manual.
 
-- Couldn't tell from the terminal whether a `deploy-mobile` run's submit step had resulted in a visible release.
-- Couldn't answer "what's the current versionCode in Internal?" without opening a browser.
-- Store-listing gaps (missing short/full description, contact details) that block promotion to external testing weren't surfaced anywhere in our tooling — only Play's web UI would flag them, and only if you navigated to the right page.
-- Debugging submit failures required cross-referencing EAS submission ID against Play Console manually.
+This spec covers the **tooling** side: the CLIs that talk to Google Play Developer API. Spec 30 covers the **content** side (listing YAML, assets, PRD-sourced copy, the screenshot source URLs).
 
 ## 2. Goals
 
-- A one-command view of Play Console state for `sg.reviewapp.app`: identity, listing completeness, releases on every track.
-- Zero interactive auth. Reuses the existing Play Developer API credentials (the `eas-submit@humini-review.iam.gserviceaccount.com` service account granted Release Manager via Play Console → Users and permissions / Settings → Developer account → API access).
-- Scoped output: `--track=internal` to focus on one track; `--package=<id>` to point at a future second app if we ever have one.
-- Minimal surface area — no writes. Read-only diagnostic.
+- One-command read: app identity, listings, tracks, releases, image counts.
+- One-command write: push listing text + images from committed source.
+- Zero interactive auth. Reuses the `eas-submit@humini-review.iam.gserviceaccount.com` service account (Play Console → Settings → Developer account → API access, role Release Manager).
+- Zero new npm deps. Bun + `node:crypto` + `fetch` + optional use of the existing `apps/regression/node_modules/@playwright/test` for screenshots.
 
 ## 3. Non-goals (this spec)
 
-- No release promotion (promote internal → beta → production is a Play Console action with its own approval workflow; scripting it is Spec 29.1 follow-up).
-- No release-notes editing, listing metadata upload, screenshots upload. Those are `eas metadata` / fastlane territory — deferred to spec 31.
-- No changes to `deploy-mobile.yml` or the submit pipeline itself — those are Spec 17's scope.
+- No release **promotion** (internal → beta → production). Follow-up.
+- No release-notes editing, localization, app-content policy toggles (content rating, target audience). Follow-up.
+- No fastlane, no Ruby, no `eas metadata` (iOS-only today; doesn't push Play).
+- No changes to `deploy-mobile.yml` — that's Spec 17.
+- Listing content itself — in Spec 30.
 
-## 4. Implementation
+## 4. Scripts
 
-### 4.1 Script
-`infra/scripts/play-status.ts` (bun). Single file, no new npm deps. Uses:
+All under `infra/scripts/`, all bun-runnable, all read `infra/dev/vault/eas-submit-sa.json` (spec 22 vault).
 
-- `node:crypto` for RS256 JWT signing.
-- `fetch()` for token exchange + REST calls.
-- `readFileSync(infra/dev/vault/eas-submit-sa.json)` to get SA credentials.
+### 4.1 `play-auth.ts` — shared auth helper
 
-### 4.2 Auth flow
+Exports:
 
-1. Load SA JSON from the vault (`infra/dev/vault/eas-submit-sa.json`, same file `deploy-mobile.yml` decodes for `eas submit`).
-2. Build a JWT claim set: `{iss: client_email, scope: "https://www.googleapis.com/auth/androidpublisher", aud: token_uri, exp: now+3600, iat: now}`.
-3. RS256-sign with the SA private key.
-4. POST to `sa.token_uri` (Google OAuth2 token endpoint), grant type `urn:ietf:params:oauth:grant-type:jwt-bearer`, assertion = the signed JWT.
-5. Response has `access_token`. Use it as `Authorization: Bearer <token>` against `androidpublisher.googleapis.com`.
+- `loadServiceAccount()` → parses the SA JSON, throws a clear `task dev:bundle:pull` hint if the vault file is missing.
+- `getAccessToken(sa)` → builds JWT (RS256 via `node:crypto`), POSTs to `sa.token_uri` with `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer`, returns `access_token`.
+- `DEFAULT_PACKAGE = "sg.reviewapp.app"`.
+- `withEdit(token, pkg, fn)` — create edit → run `fn(editId)` → best-effort DELETE on finally.
+- `stripCompletedReleasesFromAllTracks(token, pkg, editId)` — the draft-app workaround (§4.6 below).
 
-No `google-auth-library` dependency — Node's crypto primitives + `fetch` are enough. Script is ~200 lines total.
+Single import surface so the three caller scripts stay small. `node:crypto` is enough — no `google-auth-library`, no `googleapis`.
 
-### 4.3 API surface queried
+### 4.2 `play-status.ts` — read-only diagnostic
 
-All via Google Play Developer API v3, under `/androidpublisher/v3/applications/<package>`:
+```
+task dev:play:status                            # everything
+task dev:play:status -- --track=internal        # filter
+task dev:play:status -- --package=sg.other.app  # different app
+```
 
-1. `POST /edits` → creates a short-lived edit session, returns `{id}`. Read-only queries still need one.
-2. `GET /edits/:editId/details` → `{defaultLanguage, contactEmail, contactWebsite}`.
-3. `GET /edits/:editId/listings` → array of `{language, title, shortDescription, fullDescription}`.
-4. `GET /edits/:editId/tracks` → array of `{track, releases: [{name, versionCodes, status, userFraction, releaseNotes}]}`.
-5. `DELETE /edits/:editId` → dispose. Never commit — we only read.
-
-### 4.4 Output shape
-
-Human-readable plain text to stdout, three sections with dividers:
+Output (plain text, dividers, scannable):
 
 ```
 ━━━ app details ━━━
 default language: en-GB
-contact email:    (unset)
-contact website:  (unset)
+contact email:    elan@arusinnovation.com
+contact website:  https://teczeed.com
 
 ━━━ store listings ━━━
 [en-GB]
   title:             ReviewApp
-  short description: (empty)
-  full description:  (empty)
+  short description: Every individual is a brand. Your reviews, portable for life.
+  full description:  1887 chars
+
+━━━ listing images (en-GB) ━━━
+  ✓ icon               1 image
+  ✓ featureGraphic     1 image
+  ✓ phoneScreenshots   3 images
 
 ━━━ tracks & releases ━━━
-
-◎ production  (0 releases)
-   — no releases on this track
 
 ◎ internal  (2 releases)
    draft      versionCode=[115]  name='1.0.0'
    completed  versionCode=[13]   name='13 (1.0.0)'
 ```
 
-Designed for quick visual scan, not parsing. If we need JSON, add a `--json` flag later.
+The `✓` / `⚠️` markers on image rows flag whether the category has ≥1 (icon, featureGraphic) or ≥2 (phoneScreenshots — Play's minimum for promotion).
 
-### 4.5 Task wrapper
+### 4.3 `play-listing-push.ts` — text + contact
 
-```yaml
-# Taskfile.dev.yml
-play:status:
-  desc: Query Play Console (via eas-submit SA) for app identity, listings, and track releases
-  cmd: bun run {{.REPO_ROOT}}/infra/scripts/play-status.ts {{.CLI_ARGS}}
-```
+Pushes `apps/mobile/store-listing.yml` (see Spec 30):
 
-Invocations:
+1. Create edit.
+2. `PATCH /details` — `defaultLanguage`, `contactEmail`, `contactWebsite`.
+3. `PUT /listings/{language}` — `title`, `shortDescription`, `fullDescription`.
+4. Strip completed releases from edit-view tracks (§4.6).
+5. Commit.
+6. Try/finally DELETEs the edit on any error. Idempotent — running twice in a row is a no-op on the second pass if nothing changed.
 
-```bash
-task dev:play:status                            # all tracks, all sections
-task dev:play:status -- --track=internal        # filter to internal
-task dev:play:status -- --package=sg.other.app  # different app in same GCP project
-```
+### 4.4 `play-images-push.ts` — icon, feature graphic, screenshots
 
-## 5. Credentials & IAM
+Uploads from `apps/mobile/store-assets/` (see Spec 30):
 
-The `eas-submit@humini-review.iam.gserviceaccount.com` SA has:
+1. Create edit.
+2. Upload via `POST /upload/androidpublisher/v3/applications/{pkg}/edits/{editId}/listings/{lang}/{imageType}?uploadType=media` — binary body, content-type `image/png`.
+3. Icon + feature graphic: upload replaces the single slot.
+4. Phone screenshots: `DELETE /listings/{lang}/phoneScreenshots` first, then `POST` each in order (2, 3, or more).
+5. Strip completed releases (§4.6).
+6. Commit. Try/finally DELETE on error. Idempotent.
 
-- **Google Cloud Platform side**: none relevant to Play. The GCP project `humini-review` hosts the SA identity but Play API access is granted on the Play side.
-- **Play Console side**: via Play Console → Settings → Developer account → API access (not the Users and Permissions page — that's UI-only; the API access page is where service accounts are linked to the developer account). Currently holds Release Manager permissions scoped to `sg.reviewapp.app`.
+### 4.5 `capture-store-screenshots.ts` — asset generator
 
-No additional scopes required for this CLI — `androidpublisher` is the single scope used. The SA's Release Manager role covers: list tracks, list listings, create/read/delete edit sessions.
+Sources for Spec 30's `apps/mobile/store-assets/`:
 
-### 5.1 Required scopes
+- **Icon**: `magick convert apps/mobile/assets/icon.png -resize 512x512 apps/mobile/store-assets/icon-512.png`.
+- **Feature graphic**: ImageMagick generates an indigo `#4f46e5` 1024×500 canvas + centered "ReviewApp" wordmark + tagline. Placeholder; replace with designer output by swapping the PNG in place (no code change).
+- **Phone screenshots**: Playwright (imported from `apps/regression/node_modules/@playwright/test`) opens Chromium at 1080×1920, navigates to each source URL (Spec 30 §3), full-page screenshot. Dashboard captures prime localStorage `auth_user` first (seeded via `loginAs(ramesh@reviewapp.demo)`) same way the regression suite does.
 
-`https://www.googleapis.com/auth/androidpublisher` — the one scope. Requested in the JWT claim at line 54 of the script. If Google rotates scopes, update there.
+Re-runnable on demand: `task dev:play:assets:regenerate` overwrites everything in `apps/mobile/store-assets/`.
 
-### 5.2 Vault linkage (spec 22)
+### 4.6 Draft-app commit workaround
 
-The SA JSON lives at `infra/dev/vault/eas-submit-sa.json`. Vault is gitignored. Bootstrap via `task dev:bundle:pull` (spec 22 §dev-bundle). If the file is missing, `play-status.ts` exits with a clear error pointing at the bootstrap task.
-
-## 6. Regression
-
-Not in the Playwright regression suite. This CLI is a developer/operator tool, not a user-facing feature. Manual verification after changes:
-
-```bash
-task dev:play:status | head -10
-# expect: authed as eas-submit@... + app details block without errors
-```
-
-If the SA loses Play access (rotation, role change), the CLI fails on the token exchange or on the first API call with a clear error. No silent degradation.
-
-## 7. Current state reported (2026-04-19)
-
-Baseline snapshot at implementation time:
-
-| Field | Value |
-|---|---|
-| Package | `sg.reviewapp.app` |
-| Title | `ReviewApp` ✓ |
-| Contact email | **(unset)** — blocks external testing |
-| Contact website | **(unset)** — blocks external testing |
-| Short description | **(empty)** — blocks external testing |
-| Full description | **(empty)** — blocks external testing |
-| Production track | 0 releases |
-| Beta track | 1 draft (versionCode 13) |
-| Alpha track | 0 releases |
-| Internal track | 2 releases: completed `versionCode=13`, draft `versionCode=115` |
-
-The versionCode 115 draft matches `100 + GITHUB_RUN_NUMBER` from `deploy-mobile.yml` (spec 17 §Android versionCode management). Version 13 was the manual first-upload required by Google policy (spec 17 §Prerequisites).
-
-## 8. Operational use cases
-
-**Smoke after a mobile deploy**:
-```bash
-gh run watch <id> && task dev:play:status -- --track=internal
-```
-Confirms the new versionCode actually landed in Internal, not silently failed.
-
-**Before promoting a build**: check that `completed` exists on Internal before clicking Promote to Beta in the Play Console UI.
-
-**Pre-flight listing check**: run before attempting `eas metadata` push (spec 31 future) to see which listing fields are empty.
-
-**Rotation smoke-test**: after rotating the `eas-submit-sa.json` (spec 17 rotation path), `task dev:play:status` is the fastest way to verify the new key still works.
-
-## 8.5 Populating a listing (push flow)
-
-Source of truth:
-
-- `apps/mobile/store-listing.yml` — declarative text (title, short/full description, contact email/website, privacy policy URL, default language). Committed.
-- `apps/mobile/store-assets/` — committed image assets: `icon-512.png`, `feature-graphic-1024x500.png`, `screenshot-*.png`. Regenerated, never hand-edited.
-
-Three tasks, run in order:
-
-```bash
-task dev:play:assets:regenerate   # ImageMagick + Playwright → apps/mobile/store-assets/
-task dev:play:listing:push        # text fields → Play Console
-task dev:play:images:push         # images → Play Console
-task dev:play:status              # verify
-```
-
-Scripts:
-
-- `infra/scripts/play-auth.ts` — shared JWT → access token helper + the `stripCompletedReleasesFromAllTracks` draft-app commit workaround (see below).
-- `infra/scripts/play-listing-push.ts` — creates an edit, PATCH `details` (contact email + website + default language), PUT `listings/{lang}`, strips completed releases from edit-view tracks, commits. Idempotent; try/finally deletes the edit on error.
-- `infra/scripts/play-images-push.ts` — creates an edit, uploads icon + feature graphic via the `/upload/...` endpoint (binary body, content-type `image/png`), DELETEs all `phoneScreenshots` then POSTs each, strips completed releases, commits. Idempotent.
-- `infra/scripts/capture-store-screenshots.ts` — ImageMagick for icon + feature graphic, Playwright (via `apps/regression/node_modules/@playwright/test`) for 1080×1920 captures of the scan URL and authenticated dashboard. Demo account `ramesh@reviewapp.demo` / `Demo123` by default.
-
-### 8.5.1 Privacy policy URL
-
-Play's v3 `AppDetails` resource does **not** include `privacyPolicy`. The URL lives in the manifest for a single source of truth but must be set once via Play Console → Policy → App content. The script logs a reminder.
-
-### 8.5.2 Draft-app commit workaround
-
-Before the app has gone through first production review ("draft app" state), Play rejects any edit commit with:
+Before the app has its first production-reviewed release, Play rejects any edit commit that contains a non-draft release in any track snapshot with:
 
 ```
 400 Only releases with status draft may be created on draft app.
 ```
 
-…if any track snapshot in the edit carries a non-draft release (e.g. the first manual upload's `completed versionCode=13` on the internal track). The `changesNotSentForReview` query param is rejected either way (`false` → same 400, `true` → "must not be set").
+The `changesNotSentForReview` query param doesn't help (`false` → same 400; `true` → "must not be set").
 
-Workaround: before commit, for every track in the edit, PUT the track with only `status === "draft"` releases retained. Play preserves completed releases server-side independently — `play-status` still shows them after commit. This unsticks listing/details/image commits without affecting live state.
+**Workaround** (in `play-auth.ts`'s `stripCompletedReleasesFromAllTracks`): before commit, for every track currently in the edit, PUT the track keeping only `status === "draft"` releases. Play preserves completed releases independently — `play-status` still shows them after commit. This unblocks listing/details/image commits without affecting live state.
 
-Once the app has its first production release reviewed, this workaround becomes a no-op (all tracks are draft-only by nature of how subsequent edits work).
+Becomes a no-op once the app has a production-reviewed release.
 
-## 9. Follow-ups (not blocking)
+## 5. Task wiring
 
-- **`--json` output mode** for piping into other scripts.
-- **`task dev:play:promote`** — POST a release to a higher track (internal → beta). Requires the edit flow to commit, not just read; and user confirmation guard similar to the `confirm: deploy-mobile` pattern.
-- ~~`task dev:play:listing:push` — wrap `eas metadata` or equivalent to set title, descriptions, contact email/website, feature graphic from a declarative YAML. Spec 31 territory.~~ Shipped in §8.5.
-- **Health-check integration** — surface Play listing completeness in `task dev:health` alongside Cloud Run `/health`. Nice-to-have, not load-bearing.
-- **Prod mirror** — replicate `dev:play:*` under a `prod:` label once a second Play account is in play (currently `sg.reviewapp.app` is the only app and `.env.dev` is the only vault scope).
+`Taskfile.dev.yml` → Play Console section:
 
-## 10. Invariants
+```yaml
+play:status:              cmd: bun run .../play-status.ts {{.CLI_ARGS}}
+play:listing:push:        cmd: bun run .../play-listing-push.ts {{.CLI_ARGS}}
+play:images:push:         cmd: bun run .../play-images-push.ts {{.CLI_ARGS}}
+play:assets:regenerate:   cmd: bun run .../capture-store-screenshots.ts {{.CLI_ARGS}}
+```
 
-- Read-only. This script never commits an edit, never posts a release, never uploads listing content.
-- No dependency beyond bun + node stdlib + fetch. Adding a googleapis npm dep would be a regression — the whole point is zero-install-on-fresh-clone.
-- SA key lives in the vault, not env vars. Never inline the key in the script or commit it.
-- Package defaults to `sg.reviewapp.app` but every call accepts `--package` so a second app onboarding needs zero code changes.
+Standard ops sequence to rebuild-and-publish a full listing: `assets:regenerate → listing:push → images:push → status`.
+
+## 6. Credentials & IAM
+
+- SA: `eas-submit@humini-review.iam.gserviceaccount.com` (JSON at `infra/dev/vault/eas-submit-sa.json`).
+- Scope: `https://www.googleapis.com/auth/androidpublisher` (one scope, requested in the JWT claim).
+- Play role: **Release Manager** on `sg.reviewapp.app`, granted via Play Console → Settings → Developer account → API access (NOT Users and Permissions — that page is UI-only).
+- Rotation: drop a new SA JSON into the vault, `task dev:bundle:push`. Smoke-test with `task dev:play:status`.
+
+## 7. Regression
+
+Not in the Playwright suite. Operator tool. Smoke-test manually after changes:
+
+```bash
+task dev:play:status | head -10
+# expect: authed as eas-submit@... + app details block, no errors
+```
+
+Write-path round-trip:
+
+```bash
+task dev:play:assets:regenerate
+task dev:play:listing:push
+task dev:play:images:push
+task dev:play:status
+# expect: every text field set, ≥1 icon, ≥1 featureGraphic, ≥2 phoneScreenshots
+```
+
+## 8. Follow-ups (not blocking)
+
+- **`--json` output mode** for `play-status.ts` for piping.
+- **`task dev:play:promote`** — POST a release to a higher track (internal → closed → production). Requires edit commit + a `confirm=promote` guardrail like `deploy-mobile`.
+- **App-content push** — content rating, target audience, data safety form. Currently manual in Play Console → Policy → App content. Worth automating once those fields stabilize.
+- **Health-check integration** — surface Play listing completeness in `task dev:health` alongside Cloud Run `/health`.
+- **Prod mirror** — replicate under a `prod:` Taskfile label once there's a second Play developer account in scope.
+
+## 9. Invariants
+
+- SA key lives in the vault, never env, never committed.
+- Zero new npm deps — bun + node stdlib + fetch + existing Playwright via apps/regression.
+- Every script defaults to `sg.reviewapp.app` but accepts `--package=<id>`. Second app onboarding is zero code change.
+- Write CLIs are idempotent — re-running is safe. Every edit session is wrapped in try/finally that DELETEs on any error path.
+- Listing **content** (copy, assets) lives in Spec 30's files. This spec's scripts are dumb pipes — they execute what Spec 30 declares.
