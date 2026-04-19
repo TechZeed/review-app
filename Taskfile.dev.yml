@@ -141,12 +141,12 @@ tasks:
   test:regression:
     desc: Run E2E regression suite against dev (spec 25)
     dir: "{{.REPO_ROOT}}/apps/regression"
-    cmd: set -a && . {{.REPO_ROOT}}/.env.regression && set +a && npx playwright test --config={{.REPO_ROOT}}/apps/regression/playwright.config.ts {{.CLI_ARGS}}
+    cmd: cd {{.REPO_ROOT}}/apps/regression && set -a && . {{.REPO_ROOT}}/.env.regression && set +a && npx --no-install playwright test {{.CLI_ARGS}}
 
   test:regression:smoke:
     desc: Regression smoke only (API reachable + seeded login works)
     dir: "{{.REPO_ROOT}}/apps/regression"
-    cmd: set -a && . {{.REPO_ROOT}}/.env.regression && set +a && npx playwright test --config={{.REPO_ROOT}}/apps/regression/playwright.config.ts --project=smoke
+    cmd: cd {{.REPO_ROOT}}/apps/regression && set -a && . {{.REPO_ROOT}}/.env.regression && set +a && npx --no-install playwright test --project=smoke
 
   bundle:pull:
     desc: Fetch review-dev-bundle from GCP Secret Manager (falls back to `gcloud config` project) and unpack into repo root

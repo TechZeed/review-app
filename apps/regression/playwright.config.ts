@@ -32,19 +32,24 @@ export default defineConfig({
       testMatch: /00-smoke\.spec\.ts/,
     },
     {
+      name: "mobile",
+      use: { baseURL: API_URL },
+      testMatch: /01-mobile-api\.spec\.ts/,
+    },
+    {
       name: "scanner",
       use: { baseURL: SCAN_URL },
-      testMatch: /01-scanner\.spec\.ts/,
+      testMatch: /04-scanner\.spec\.ts/,
     },
     {
       name: "dashboard",
       use: { baseURL: DASHBOARD_URL },
-      testMatch: /(02-dashboard|03-role-upgrade|04-subscription)\.spec\.ts/,
+      testMatch: /(02-dashboard-login|03-dashboard-reviews|05-role-upgrade|06-subscription)\.spec\.ts/,
     },
     {
       name: "api",
       use: { baseURL: API_URL },
-      testMatch: /05-cross-stack\.spec\.ts/,
+      testMatch: /07-cross-stack\.spec\.ts/,
     },
   ],
 });
