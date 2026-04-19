@@ -4,6 +4,8 @@ import { AuthRepo, RoleRequestRepo } from './auth.repo.js';
 import { AppError } from '../../shared/errors/appError.js';
 import { env } from '../../config/env.js';
 import { getFirebaseAuth } from '../../config/firebase.js';
+import { capabilityRepo } from '../capability/capability.repo.js';
+import { logger } from '../../config/logger.js';
 import type {
   RegisterInput,
   LoginInput,
@@ -58,9 +60,16 @@ export class AuthService {
   }
 
   /**
-   * Issue a custom HS256 JWT with role + tier claims
+   * Issue a custom HS256 JWT with role + tier + capability claims
    */
-  issueJwt(user: any): string {
+  async issueJwt(user: any): Promise<string> {
+    let capabilities: string[] = [];
+    try {
+      capabilities = await capabilityRepo.listActiveNames(user.id);
+    } catch (err) {
+      logger.warn('issueJwt: failed to load capabilities, emitting empty list', { err, userId: user.id });
+    }
+
     const payload: JwtClaims = {
       sub: user.id,
       email: user.email,
@@ -69,6 +78,7 @@ export class AuthService {
       status: user.status,
       tier: user.tier ?? 'free',
       provider: user.provider ?? 'google',
+      capabilities,
     };
 
     return jwt.sign(payload, env.JWT_SECRET, {
@@ -111,7 +121,7 @@ export class AuthService {
       lastLoginAt: new Date(),
     } as any);
 
-    const accessToken = this.issueJwt(user);
+    const accessToken = await this.issueJwt(user);
 
     return {
       user: this.toUserResponse(user),
@@ -146,7 +156,7 @@ export class AuthService {
     }
     await user.update(updates);
 
-    const accessToken = this.issueJwt(user);
+    const accessToken = await this.issueJwt(user);
 
     return {
       user: this.toUserResponse(user),
@@ -198,7 +208,7 @@ export class AuthService {
       } as any);
     }
 
-    const accessToken = this.issueJwt(user);
+    const accessToken = await this.issueJwt(user);
 
     return {
       user: this.toUserResponse(user),
@@ -233,7 +243,7 @@ export class AuthService {
 
     await user.update({ lastLoginAt: new Date() });
 
-    const accessToken = this.issueJwt(user);
+    const accessToken = await this.issueJwt(user);
 
     return {
       user: this.toUserResponse(user),
@@ -262,7 +272,7 @@ export class AuthService {
       lastLoginAt: null,
     } as any);
 
-    const accessToken = this.issueJwt(user);
+    const accessToken = await this.issueJwt(user);
 
     return {
       user: this.toUserResponse(user),
@@ -387,6 +397,47 @@ export class AuthService {
 
     await user.update({ status } as any);
     return this.toUserResponse(user);
+  }
+
+  /**
+   * Spec 28 — admin grants a capability to a user (support / demo / comped).
+   */
+  async adminGrantCapability(
+    targetUserId: string,
+    adminUserId: string,
+    data: { capability: string; expiresAt?: string; reason?: string },
+  ): Promise<{ capabilities: Array<{ capability: string; source: string; expiresAt: string | null }> }> {
+    const target = await this.repo.findById(targetUserId);
+    if (!target) {
+      throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+
+    await capabilityRepo.grantByAdmin({
+      userId: targetUserId,
+      capability: data.capability,
+      expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+      adminUserId,
+      reason: data.reason ?? null,
+    });
+
+    const capabilities = await capabilityRepo.listActive(targetUserId);
+    return { capabilities };
+  }
+
+  /**
+   * Spec 28 — admin revokes a capability (expires_at = NOW()).
+   */
+  async adminRevokeCapability(targetUserId: string, capability: string): Promise<{
+    capabilities: Array<{ capability: string; source: string; expiresAt: string | null }>;
+  }> {
+    const target = await this.repo.findById(targetUserId);
+    if (!target) {
+      throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+
+    await capabilityRepo.revoke(targetUserId, capability);
+    const capabilities = await capabilityRepo.listActive(targetUserId);
+    return { capabilities };
   }
 
   /**

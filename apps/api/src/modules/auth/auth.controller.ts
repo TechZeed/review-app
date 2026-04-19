@@ -203,4 +203,37 @@ export class AuthController {
       next(error);
     }
   };
+
+  /**
+   * Admin grants a capability to a user (spec 28 §8)
+   * POST /api/v1/auth/admin/users/:id/capabilities
+   */
+  adminGrantCapability = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const result = await this.authService.adminGrantCapability(
+        req.params.id as string,
+        req.user!.id,
+        req.body,
+      );
+      res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Admin revokes a capability from a user (spec 28 §8)
+   * DELETE /api/v1/auth/admin/users/:id/capabilities/:capability
+   */
+  adminRevokeCapability = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const result = await this.authService.adminRevokeCapability(
+        req.params.id as string,
+        req.params.capability as string,
+      );
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
 }

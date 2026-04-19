@@ -64,3 +64,17 @@ export const roleRequestIdParamSchema = z.object({
 export const userIdParamSchema = z.object({
   id: z.string().uuid('Invalid user ID'),
 });
+
+// Spec 28 — admin capability grant / revoke
+export const CAPABILITY_NAMES = ['pro', 'employer', 'recruiter'] as const;
+
+export const grantCapabilitySchema = z.object({
+  capability: z.enum(CAPABILITY_NAMES),
+  expiresAt: z.string().datetime({ offset: true }).optional(),
+  reason: z.string().max(500).optional(),
+});
+
+export const capabilityParamSchema = z.object({
+  id: z.string().uuid('Invalid user ID'),
+  capability: z.enum(CAPABILITY_NAMES),
+});

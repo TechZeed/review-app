@@ -16,6 +16,8 @@ import {
   updateStatusSchema,
   roleRequestIdParamSchema,
   userIdParamSchema,
+  grantCapabilitySchema,
+  capabilityParamSchema,
 } from './auth.validation.js';
 
 export const authRouter = Router();
@@ -127,4 +129,22 @@ authRouter.patch(
   validateParams(userIdParamSchema),
   validateBody(updateStatusSchema),
   controller.updateUserStatus
+);
+
+// Spec 28 — admin capability grant/revoke
+authRouter.post(
+  '/admin/users/:id/capabilities',
+  authenticate,
+  requireRole(ADMIN_ROLES),
+  validateParams(userIdParamSchema),
+  validateBody(grantCapabilitySchema),
+  controller.adminGrantCapability
+);
+
+authRouter.delete(
+  '/admin/users/:id/capabilities/:capability',
+  authenticate,
+  requireRole(ADMIN_ROLES),
+  validateParams(capabilityParamSchema),
+  controller.adminRevokeCapability
 );

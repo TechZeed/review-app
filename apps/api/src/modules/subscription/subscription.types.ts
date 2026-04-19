@@ -42,6 +42,7 @@ export interface SubscriptionResponse {
   cancelAtPeriodEnd: boolean;
   quantity: number;
   createdAt: string;
+  capabilities?: Array<{ capability: string; source: string; expiresAt: string | null }>;
 }
 
 export interface CheckoutResponse {

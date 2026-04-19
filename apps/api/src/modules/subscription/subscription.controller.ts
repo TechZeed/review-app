@@ -31,7 +31,8 @@ export class SubscriptionController {
     try {
       const subscription = await this.service.getMySubscription(req.user!.id);
       if (!subscription) {
-        res.json({ tier: 'free', status: 'none' });
+        const capabilities = await this.service.listActiveCapabilities(req.user!.id);
+        res.json({ tier: 'free', status: 'none', capabilities });
         return;
       }
       res.json(subscription);

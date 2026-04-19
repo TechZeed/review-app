@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { getStripe } from '../../config/stripe.js';
 import { env } from '../../config/env.js';
 import { SubscriptionRepository } from './subscription.repo.js';
+import { capabilityRepo } from '../capability/capability.repo.js';
 import { AppError } from '../../shared/errors/appError.js';
 import { logger } from '../../config/logger.js';
 import type {
@@ -132,7 +133,13 @@ export class SubscriptionService {
   async getMySubscription(userId: string): Promise<SubscriptionResponse | null> {
     const sub = await this.repo.findByUserId(userId);
     if (!sub) return null;
-    return this.toResponse(sub);
+    const response = this.toResponse(sub);
+    response.capabilities = await capabilityRepo.listActive(userId);
+    return response;
+  }
+
+  async listActiveCapabilities(userId: string) {
+    return capabilityRepo.listActive(userId);
   }
 
   async cancelSubscription(userId: string, immediate: boolean = false): Promise<SubscriptionResponse> {
@@ -223,6 +230,8 @@ export class SubscriptionService {
     // Check if subscription record already exists for this user
     const existing = await this.repo.findByUserId(userId);
 
+    let subscriptionRowId: string | undefined;
+
     if (existing && existing.status === 'cancelled') {
       // Re-subscribe: update existing record
       await this.repo.updateSubscription(existing.id, {
@@ -233,9 +242,10 @@ export class SubscriptionService {
         cancelAtPeriodEnd: false,
         cancelledAt: null,
       });
+      subscriptionRowId = existing.id;
     } else if (!existing) {
       // New subscription
-      await this.repo.createSubscription({
+      const created = await this.repo.createSubscription({
         userId,
         tier: dbTier,
         status: 'active',
@@ -244,6 +254,28 @@ export class SubscriptionService {
         currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
         currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
       });
+      subscriptionRowId = created.id;
+    } else {
+      subscriptionRowId = existing.id;
+    }
+
+    // Spec 28 — grant the capability matching this paid tier.
+    if (dbTier && dbTier !== 'free' && subscriptionRowId) {
+      try {
+        await capabilityRepo.upsert({
+          userId,
+          capability: dbTier,
+          source: 'subscription',
+          subscriptionId: subscriptionRowId,
+          expiresAt: null,
+          metadata: {
+            app_tier: appTier,
+            stripe_subscription_id: session.subscription as string,
+          },
+        });
+      } catch (err) {
+        logger.error('Failed to upsert capability on subscription activation', { err, userId, tier: dbTier });
+      }
     }
 
     logger.info('Subscription activated', { userId, tier: dbTier });
@@ -271,6 +303,16 @@ export class SubscriptionService {
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
     });
 
+    // Spec 28 — if cancel_at_period_end flipped on, mark the capability as
+    // expiring at period_end. Grace until then.
+    if (subscription.cancel_at_period_end) {
+      try {
+        await capabilityRepo.setExpiry(sub.id, new Date(subscription.current_period_end * 1000));
+      } catch (err) {
+        logger.error('Failed to set capability expiry on cancel_at_period_end', { err, subscriptionId: sub.id });
+      }
+    }
+
     logger.info('Subscription updated', { subscriptionId: sub.id, status: subscription.status });
   }
 
@@ -281,13 +323,27 @@ export class SubscriptionService {
       return;
     }
 
+    const now = new Date();
     await this.repo.updateSubscription(sub.id, {
       status: 'cancelled',
       tier: 'free',
-      cancelledAt: new Date(),
+      cancelledAt: now,
       currentPeriodStart: null,
       currentPeriodEnd: null,
     });
+
+    // Spec 28 — expire the capability immediately when Stripe marks the
+    // subscription deleted. If the caller wanted grace, they set
+    // cancel_at_period_end and we already set expires_at = current_period_end
+    // on that webhook.
+    try {
+      const periodEnd = subscription.current_period_end
+        ? new Date(subscription.current_period_end * 1000)
+        : now;
+      await capabilityRepo.setExpiry(sub.id, periodEnd);
+    } catch (err) {
+      logger.error('Failed to set capability expiry on subscription deleted', { err, subscriptionId: sub.id });
+    }
 
     logger.info('Subscription deactivated', { subscriptionId: sub.id });
   }

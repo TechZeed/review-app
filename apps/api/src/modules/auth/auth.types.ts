@@ -71,6 +71,7 @@ export interface JwtClaims {
   status: string;
   tier?: string;
   provider?: string;
+  capabilities?: string[];
   iat?: number;
   exp?: number;
 }
