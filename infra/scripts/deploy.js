@@ -58,18 +58,10 @@ const LOCAL_ONLY_KEYS = new Set([
   'PORT',
 ]);
 
-// Vite build-arg keys used for web/ui docker builds.
-const VITE_BUILD_ARG_KEYS = [
-  'VITE_API_URL',
-  'VITE_FIREBASE_API_KEY',
-  'VITE_FIREBASE_AUTH_DOMAIN',
-  'VITE_FIREBASE_PROJECT_ID',
-  'VITE_FIREBASE_STORAGE_BUCKET',
-  'VITE_FIREBASE_MESSAGING_SENDER_ID',
-  'VITE_FIREBASE_APP_ID',
-  'VITE_FIREBASE_MEASUREMENT_ID',
-  'VITE_FEATURE_EMAIL_LOGIN',
-];
+// Frontend (web, ui) docker builds take a single --build-arg APP_ENV=<env>.
+// All frontend config (API URL, Firebase web keys, feature flags) lives in
+// apps/<app>/config/appconfig.<env>.json, committed to the repo and inlined
+// by Vite at build time. See docs/specs/26-frontend-appconfig.
 
 // Forced overrides — always applied regardless of .env.<env> contents.
 const FORCED_ENV = {
@@ -125,10 +117,6 @@ const KNOWN_CONFIG_KEYS = [
   'REVIEW_TOKEN_EXPIRY_HOURS', 'REVIEW_COOLDOWN_DAYS',
   'ENABLE_HTTP_LOGGING',
   'EXPO_TOKEN',
-  'VITE_API_URL',
-  'VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_PROJECT_ID',
-  'VITE_FIREBASE_STORAGE_BUCKET', 'VITE_FIREBASE_MESSAGING_SENDER_ID',
-  'VITE_FIREBASE_APP_ID', 'VITE_FIREBASE_MEASUREMENT_ID',
 ];
 
 function loadEnvFile(env) {
@@ -321,7 +309,6 @@ function buildApiSecretsFlag(envMap) {
 
 function buildCloudRunEnv(envMap, deployEnv) {
   const secretKeys = new Set(Object.keys(SECRET_MAPPING));
-  const viteKeys = new Set(VITE_BUILD_ARG_KEYS);
   const vaultFiles = envMap.__gcpVaultFiles || {};
   const vaultKeys = new Set(Object.keys(vaultFiles));
   const out = {};
@@ -329,7 +316,7 @@ function buildCloudRunEnv(envMap, deployEnv) {
     if (k.startsWith('__')) continue;     // internal bookkeeping
     if (secretKeys.has(k)) continue;      // injected via --set-secrets
     if (LOCAL_ONLY_KEYS.has(k)) continue; // dev-machine only
-    if (viteKeys.has(k)) continue;        // baked into frontend bundle at build time
+    if (k.startsWith('VITE_')) continue;  // obsolete — baked via appconfig.<env>.json (spec 26)
     if (vaultKeys.has(k)) continue;       // overridden below to the Cloud Run mount path
     out[k] = v;
   }
@@ -363,10 +350,8 @@ function buildAndPush(service, env, envMap) {
 
   let buildArgs = '';
   if (service === 'web' || service === 'ui') {
-    const present = VITE_BUILD_ARG_KEYS.filter((k) => envMap[k]);
-    buildArgs = present
-      .map((k) => `--build-arg ${k}=${envMap[k]}`)
-      .join(' ');
+    // Single build arg — Vite reads apps/<svc>/config/appconfig.<env>.json.
+    buildArgs = `--build-arg APP_ENV=${env}`;
   }
 
   run(`docker build ${buildArgs} -t ${localImage} apps/${service}/`, `Build ${service}`);

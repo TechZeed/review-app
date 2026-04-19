@@ -50,13 +50,25 @@ export class ReviewService {
       });
     }
 
+    // spec 25: pull identity fields from the eager-loaded user association.
+    // profile.repo.findBySlug already includes `user`. Fall back safely if
+    // for any reason the association didn't load.
+    const user: any = (profile as any).user ?? (profile as any).getDataValue?.('user' as any);
+    const displayName: string =
+      user?.displayName ?? user?.getDataValue?.('displayName') ?? '';
+    const avatarUrl: string | null =
+      user?.avatarUrl ?? user?.getDataValue?.('avatarUrl') ?? null;
+
     return {
       reviewToken,
       expiresAt: expiresAt.toISOString(),
       profile: {
         id: profile.getDataValue('id'),
-        name: profile.getDataValue('headline') ?? '',
-        photo: undefined,
+        // spec 19 B2 (scan-path fix): `name` = display name, not headline.
+        name: displayName,
+        headline: profile.getDataValue('headline') ?? null,
+        // spec 25: reviewee photo
+        photoUrl: avatarUrl,
         organization: undefined,
         role: undefined,
       },

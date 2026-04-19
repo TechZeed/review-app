@@ -161,6 +161,16 @@ export const up: Migration = async ({ context: sequelize }) => {
   const usersData = users.map((user) => {
     const id = faker.string.uuid();
     userIds[user.email] = id;
+    // spec 25: give the six visible demo individuals deterministic avatar
+    // URLs so the scan flow + public profile look polished in demos.
+    // ui-avatars.com produces initial-on-coloured-circle PNGs — no API
+    // key, stable per-name, avoids real-person stock photos.
+    const avatarUrl =
+      user.role === "INDIVIDUAL"
+        ? `https://ui-avatars.com/api/?name=${encodeURIComponent(
+            user.display_name,
+          )}&size=300&background=random`
+        : null;
     return {
       id,
       firebase_uid: `demo_firebase_${user.email.replace("@", "_at_").replace(".", "_dot_")}`,
@@ -169,7 +179,7 @@ export const up: Migration = async ({ context: sequelize }) => {
       display_name: user.display_name,
       role: user.role,
       status: user.status,
-      avatar_url: null,
+      avatar_url: avatarUrl,
       provider: "internal",
       password_hash: passwordHash,
       last_login_at: now,

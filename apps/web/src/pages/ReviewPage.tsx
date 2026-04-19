@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
+import Avatar from "../components/Avatar";
 import QualityChip from "../components/QualityChip";
 import ThumbsUpButton from "../components/ThumbsUpButton";
 import OtpInput from "../components/OtpInput";
@@ -11,6 +12,7 @@ const API_URL = import.meta.env.VITE_API_URL || "";
 interface ProfileData {
   id: string;
   name: string;
+  headline: string | null;
   photoUrl: string | null;
   orgName: string | null;
   role: string | null;
@@ -86,6 +88,7 @@ export default function ReviewPage() {
         setProfile({
           id: data.id,
           name: data.name || data.displayName || "Unknown",
+          headline: data.headline ?? null,
           photoUrl: data.photoUrl || data.photo_url || null,
           orgName: data.orgName || data.org_name || data.currentOrg || null,
           role: data.role || data.currentRole || null,
@@ -198,25 +201,20 @@ export default function ReviewPage() {
   // Landing page is always rendered underneath
   return (
     <div className="flex flex-col h-full bg-gray-50 relative">
-      {/* Profile Header */}
-      <div className="flex items-center gap-3 px-5 pt-6 pb-3">
-        <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
-          {profile.photoUrl ? (
-            <img src={profile.photoUrl} alt={profile.name} className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-xl font-bold text-primary-600">
-              {profile.name.charAt(0).toUpperCase()}
-            </span>
-          )}
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold text-gray-900 truncate">{profile.name}</h1>
-          {(profile.role || profile.orgName) && (
-            <p className="text-sm text-gray-500 truncate">
-              {[profile.role, profile.orgName].filter(Boolean).join(" at ")}
-            </p>
-          )}
-        </div>
+      {/* Profile Header — spec 25: large identity-confirmation avatar
+          above the quality chips so the customer recognises the face
+          before they tap. */}
+      <div className="flex flex-col items-center gap-2 px-5 pt-6 pb-3 text-center">
+        <Avatar name={profile.name} photoUrl={profile.photoUrl} size="xl" />
+        <h1 className="text-xl font-bold text-gray-900 truncate max-w-full">
+          {profile.name}
+        </h1>
+        {(profile.headline || profile.role || profile.orgName) && (
+          <p className="text-sm text-gray-500 truncate max-w-full">
+            {profile.headline ||
+              [profile.role, profile.orgName].filter(Boolean).join(" at ")}
+          </p>
+        )}
       </div>
 
       {/* Review Count Badge */}

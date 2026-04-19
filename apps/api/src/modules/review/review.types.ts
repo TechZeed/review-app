@@ -39,8 +39,12 @@ export interface ScanResponse {
   expiresAt: string;
   profile: {
     id: string;
+    // spec 25 / spec 19 B2: `name` is the person's display name.
     name: string;
-    photo?: string;
+    // `headline` is the role title (was previously returned under `name`).
+    headline: string | null;
+    // Reviewee photo sourced from users.avatar_url. null when unset.
+    photoUrl: string | null;
     organization?: string;
     role?: string;
   };
