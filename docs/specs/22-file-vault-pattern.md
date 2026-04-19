@@ -100,6 +100,14 @@ During `resolveAllSecrets()` at boot, iterate every env key ending in `_PATH`, r
 - **Push (`task dev:sync:vault`)**: for each `*_PATH` entry, read the file bytes, push to the matching store.
 - **Pull (`task dev:vault:pull`)**: for each `##### GCP Vault Files #####` entry, fetch the secret from GCP Secret Manager, write to the local path. Refuses to overwrite existing files without `--force`. GitHub vault files cannot be pulled (GH secrets are write-only).
 
+### Consumers of vault files
+
+- `deploy-mobile.yml` — decodes `EAS_SUBMIT_SA_B64` (base64-synced contents of `eas-submit-sa.json`) for Play Store submit; decodes `ASC_API_KEY_B64` for TestFlight.
+- `deploy.js` — mounts `firebase-sa.json` into Cloud Run via `--set-secrets`.
+- **`task dev:play:status`** (spec 29) — reads `infra/dev/vault/eas-submit-sa.json` locally, mints a Play Developer API JWT, lists tracks + listings. Never writes.
+
+If a consumer expects a vault file that's missing, it must fail with a pointer to `task dev:bundle:pull`. The Play CLI implements this at its `readFileSync` call; adopt the pattern for any new vault consumer.
+
 ### Dev bundle — one-shot bootstrap (added 2026-04-19, d28)
 
 `task dev:vault:pull` only pulls GCP vault files and still leaves `.env.dev` missing. For a new teammate, both are needed before anything else works. The **dev bundle** packages `.env.dev` + the vault directory into a single Secret Manager secret so dev-env bootstrap is one command.

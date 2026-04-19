@@ -2,7 +2,7 @@
 
 **Project:** ReviewApp
 **Repo:** TechZeed/review-app
-**Date:** 2026-04-16 (rewritten 2026-04-18 — manual-only + mobile CI pipeline; amended 2026-04-19 — versionCode bump, iOS status, internal-only guardrail)
+**Date:** 2026-04-16 (rewritten 2026-04-18 — manual-only + mobile CI pipeline; amended 2026-04-19 — versionCode bump, iOS status, internal-only guardrail; amended 2026-04-19 — Play Console status CLI cross-ref, see spec 29)
 
 ---
 
@@ -57,6 +57,16 @@ This is the workflow we rely on instead of local EAS builds. Local builds broke 
 Fix (in effect 2026-04-19): `appVersionSource` is flipped back to `local`, and `deploy-mobile.yml` runs a `jq` step before `eas build` that rewrites `apps/mobile/app.json` with `versionCode = 100 + GITHUB_RUN_NUMBER`. `GITHUB_RUN_NUMBER` is workflow-scoped and monotonic, the `+100` offset keeps the CI-managed range well above manual versionCodes (last manual bump was 13).
 
 The `app.json` edit is a runner-only mutation — never committed back. Preview builds (APK) skip the bump entirely, so sideload builds don't burn versionCode space.
+
+### Debugging a release — `task dev:play:status`
+
+After any `deploy-mobile` dispatch, verify what actually landed on Play without opening the browser:
+
+```bash
+task dev:play:status -- --track=internal
+```
+
+Prints the app's store-listing state and every release on the selected track (versionCode, status: `completed` / `draft` / `inProgress` / `halted`, release notes, rollout %). Uses the same `eas-submit-sa.json` this workflow already decodes for `eas submit` — no new credentials. See spec 29 for the full API surface and follow-ups.
 
 ### Internal-testers-only guardrail
 
