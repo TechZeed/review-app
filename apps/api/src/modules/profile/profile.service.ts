@@ -166,6 +166,7 @@ export class ProfileService {
 
   private toResponse(profile: any) {
     const displayName = profile.user?.displayName ?? profile.user?.getDataValue?.("displayName");
+    const avatarUrl = profile.user?.avatarUrl ?? profile.user?.getDataValue?.("avatarUrl") ?? null;
     const totalReviews = profile.totalReviews ?? 0;
     const expertiseCount = profile.expertiseCount ?? 0;
     const careCount = profile.careCount ?? 0;
@@ -181,6 +182,8 @@ export class ProfileService {
       // spec 19 B2: `name` is the person's display name; role title lives in `headline`.
       name: displayName ?? profile.headline,
       headline: profile.headline,
+      // spec 25: reviewee photo sourced from users.avatar_url
+      photoUrl: avatarUrl,
       industry: profile.industry,
       bio: profile.bio,
       visibility: profile.visibility,
@@ -203,6 +206,7 @@ export class ProfileService {
 
   private toPublicResponse(profile: any) {
     const displayName = profile.user?.displayName ?? profile.user?.getDataValue?.("displayName");
+    const avatarUrl = profile.user?.avatarUrl ?? profile.user?.getDataValue?.("avatarUrl") ?? null;
     const totalReviews = profile.totalReviews ?? 0;
     const expertiseCount = profile.expertiseCount ?? 0;
     const careCount = profile.careCount ?? 0;
@@ -218,6 +222,8 @@ export class ProfileService {
       // spec 19 B2: `name` is the person's display name; role title in `headline`.
       name: displayName ?? profile.headline,
       headline: profile.headline,
+      // spec 25: reviewee photo sourced from users.avatar_url
+      photoUrl: avatarUrl,
       industry: profile.industry,
       bio: profile.bio,
       qualityBreakdown: {

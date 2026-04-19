@@ -44,6 +44,8 @@ export interface Profile {
   slug: string;
   name: string;
   headline?: string | null;
+  // spec 25: reviewee photo (users.avatar_url). null when unset.
+  photoUrl?: string | null;
   bio?: string | null;
   industry?: string | null;
   visibility?: string;

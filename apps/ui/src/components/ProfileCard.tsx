@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { Profile } from '../lib/api';
+import Avatar from './Avatar';
 import ShareQRButton from './ShareQRButton';
 
 interface ProfileCardProps {
@@ -20,21 +21,12 @@ function buildPublicUrl(slug: string): string {
 export default function ProfileCard({ profile, showQR = false }: ProfileCardProps) {
   const qrSvgRef = useRef<SVGSVGElement | null>(null);
 
-  const initials = profile.name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-
   const publicUrl = buildPublicUrl(profile.slug);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <div className="flex items-start gap-4">
-        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl">
-          {initials}
-        </div>
+        <Avatar name={profile.name} photoUrl={profile.photoUrl} size="lg" />
         <div className="flex-1">
           <h2 className="text-xl font-bold text-gray-900">{profile.name}</h2>
           {profile.headline && (

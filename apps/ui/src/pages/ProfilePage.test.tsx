@@ -145,6 +145,36 @@ describe('ProfilePage', () => {
     expect(screen.getByText('Senior Sales Consultant')).toBeInTheDocument();
   });
 
+  it('spec 25: renders reviewee photo when API returns photoUrl', async () => {
+    mockFetchProfile.mockResolvedValue(
+      baseProfile({ photoUrl: 'https://p/q.png' }),
+    );
+    mockFetchReviews.mockResolvedValue(emptyReviews);
+
+    renderProfilePage();
+
+    await waitFor(() =>
+      expect(screen.getByText('Ramesh Kumar')).toBeInTheDocument(),
+    );
+    const img = screen.getByAltText('Ramesh Kumar') as HTMLImageElement;
+    expect(img.tagName).toBe('IMG');
+    expect(img.getAttribute('src')).toBe('https://p/q.png');
+  });
+
+  it('spec 25: falls back to initials when API returns photoUrl: null', async () => {
+    mockFetchProfile.mockResolvedValue(baseProfile({ photoUrl: null }));
+    mockFetchReviews.mockResolvedValue(emptyReviews);
+
+    renderProfilePage();
+
+    await waitFor(() =>
+      expect(screen.getByText('Ramesh Kumar')).toBeInTheDocument(),
+    );
+    expect(screen.getByText('RK')).toBeInTheDocument();
+    // No IMG tag — the QR code is an SVG, which does not match altText lookups.
+    expect(screen.queryByAltText('Ramesh Kumar')).toBeNull();
+  });
+
   it('renders review list from paginated response', async () => {
     mockFetchProfile.mockResolvedValue(baseProfile());
     mockFetchReviews.mockResolvedValue({

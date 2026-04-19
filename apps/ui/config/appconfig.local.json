@@ -1,0 +1,16 @@
+{
+  "apiUrl": "http://localhost:3000",
+  "publicReviewUrl": "http://localhost:5174",
+  "firebase": {
+    "apiKey": "AIzaSyBAQ3fKCEiCn-z7VPG9jEzQ-XA9rCWBvhE",
+    "authDomain": "humini-review.firebaseapp.com",
+    "projectId": "humini-review",
+    "storageBucket": "humini-review.firebasestorage.app",
+    "messagingSenderId": "1049089489429",
+    "appId": "1:1049089489429:web:5f0ab182785d1cf3f22c1c",
+    "measurementId": "G-4DBF9D03B4"
+  },
+  "features": {
+    "emailLogin": true
+  }
+}
