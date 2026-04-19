@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { OrganizationController } from './organization.controller.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireRole } from '../../middleware/authorize.js';
+import { requireCapability } from '../../middleware/requireCapability.js';
 import { validateBody, validateParams, validateQuery } from '../../middleware/validate.js';
 import {
   createOrgSchema,
@@ -21,7 +22,7 @@ organizationRouter.use(authenticate);
 // POST / — Create organization (employer or admin)
 organizationRouter.post(
   '/',
-  requireRole(['EMPLOYER', 'ADMIN']),
+  requireCapability('employer'),
   validateBody(createOrgSchema),
   controller.create,
 );
@@ -62,7 +63,7 @@ organizationRouter.get(
 // GET /:id/members — Get members of an organization (employer)
 organizationRouter.get(
   '/:id/members',
-  requireRole(['EMPLOYER', 'ADMIN']),
+  requireCapability('employer'),
   validateParams(orgIdParamSchema),
   controller.getMembers,
 );

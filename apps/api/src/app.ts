@@ -8,6 +8,7 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import { authenticate } from "./middleware/authenticate.js";
 import { requireRole } from "./middleware/authorize.js";
+import { requireCapability } from "./middleware/requireCapability.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { profileRouter } from "./modules/profile/profile.routes.js";
 import { reviewRouter } from "./modules/review/review.routes.js";
@@ -65,8 +66,8 @@ v1Router.use("/verification", verificationRouter);
 // Protected routes
 v1Router.use("/media", mediaRouter);
 v1Router.use("/organizations", authenticate, organizationRouter);
-v1Router.use("/recruiter", authenticate, requireRole(["RECRUITER", "ADMIN"]), recruiterRouter);
-v1Router.use("/employer", authenticate, requireRole(["EMPLOYER", "ADMIN"]), employerRouter);
+v1Router.use("/recruiter", authenticate, requireCapability("recruiter"), recruiterRouter);
+v1Router.use("/employer", authenticate, requireCapability("employer"), employerRouter);
 v1Router.use("/references", referenceRouter);
 v1Router.use("/subscriptions", subscriptionRouter);
 
