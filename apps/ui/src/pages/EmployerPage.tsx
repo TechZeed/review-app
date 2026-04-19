@@ -83,7 +83,9 @@ function pickAlerts(r: RetentionResponse | undefined): RetentionAlert[] {
 export default function EmployerPage() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role !== 'EMPLOYER' && user.role !== 'ADMIN') return <Navigate to="/dashboard" replace />;
+  // Spec 28 — capability gate. ADMIN bypasses. Missing cap → /billing (intent:
+  // "here's how to get access") rather than /dashboard (silent dead end).
+  if (!user.capabilities?.includes('employer') && user.role !== 'ADMIN') return <Navigate to="/billing" replace />;
 
   const [tab, setTab] = useState<Tab>('references');
 

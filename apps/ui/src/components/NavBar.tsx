@@ -7,14 +7,17 @@ export default function NavBar() {
   const location = useLocation();
 
   const role = user?.role;
+  // Spec 28 §10 — Employer/Recruiter nav driven by capabilities, not role.
+  // ADMIN keeps unconditional bypass (mirrors backend requireCapability).
+  const caps = user?.capabilities ?? [];
   const navItems: { path: string; label: string }[] = [];
   if (role === 'ADMIN') {
     navItems.push({ path: '/admin', label: 'Admin' });
   } else if (role) {
     navItems.push({ path: '/dashboard', label: 'Dashboard' });
   }
-  if (role === 'EMPLOYER' || role === 'ADMIN') navItems.push({ path: '/employer', label: 'Employer' });
-  if (role === 'RECRUITER' || role === 'ADMIN') navItems.push({ path: '/recruiter', label: 'Recruiter' });
+  if (caps.includes('employer') || role === 'ADMIN') navItems.push({ path: '/employer', label: 'Employer' });
+  if (caps.includes('recruiter') || role === 'ADMIN') navItems.push({ path: '/recruiter', label: 'Recruiter' });
   if (role) navItems.push({ path: '/billing', label: 'Billing' });
 
   return (

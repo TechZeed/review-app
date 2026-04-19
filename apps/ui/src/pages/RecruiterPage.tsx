@@ -84,7 +84,8 @@ function topQualities(b: QualityBreakdown): Array<{ q: Quality; n: number }> {
 export default function RecruiterPage() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role !== 'RECRUITER' && user.role !== 'ADMIN') return <Navigate to="/dashboard" replace />;
+  // Spec 28 — capability gate. ADMIN bypasses. Missing cap → /billing.
+  if (!user.capabilities?.includes('recruiter') && user.role !== 'ADMIN') return <Navigate to="/billing" replace />;
 
   const [queryInput, setQueryInput] = useState('');
   const debouncedQuery = useDebounced(queryInput, 300);
