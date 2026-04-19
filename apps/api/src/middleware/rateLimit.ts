@@ -1,9 +1,9 @@
 import rateLimit from "express-rate-limit";
 
-// In test runs, rate limits otherwise trip inside a single vitest process as
-// many scenarios hit the same endpoints. Skip the limiter under NODE_ENV=test;
-// the behaviour itself still has dedicated coverage if you mock the window.
-const skipInTest = () => process.env.NODE_ENV === "test";
+// Skip rate limiting in non-prod envs (test runs inside vitest; regression
+// suite hitting dev at a tight cadence — spec 25). Prod still enforces.
+// Extend `skipInTest` name kept for minimal-churn; predicate widened.
+const skipInTest = () => process.env.NODE_ENV === "test" || process.env.APP_ENV !== "prod";
 
 /**
  * Authentication endpoints (login, register)
