@@ -14,8 +14,10 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  const homeForRole = (role: string) => (role === 'ADMIN' ? '/admin' : '/dashboard');
+
   if (user) {
-    navigate('/dashboard', { replace: true });
+    navigate(homeForRole(user.role), { replace: true });
     return null;
   }
 
@@ -28,7 +30,7 @@ export default function LoginPage() {
       name: res.user.name,
       profile_slug: '',
     });
-    navigate('/dashboard', { replace: true });
+    navigate(homeForRole(res.user.role), { replace: true });
   };
 
   const handleGoogleSignIn = async () => {
