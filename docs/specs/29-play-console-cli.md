@@ -3,7 +3,7 @@
 **Project:** ReviewApp
 **Repo:** TechZeed/review-app
 **Date:** 2026-04-19
-**Status:** Implemented (CLI shipped; follow-ups listed in §9)
+**Status:** Implemented (read CLI + full push flow — text, images, listing assets)
 **Related:** Spec 17 (GitHub workflows — mobile pipeline), Spec 22 (file vault pattern — SA key lives here).
 
 ---
@@ -165,12 +165,54 @@ Confirms the new versionCode actually landed in Internal, not silently failed.
 
 **Rotation smoke-test**: after rotating the `eas-submit-sa.json` (spec 17 rotation path), `task dev:play:status` is the fastest way to verify the new key still works.
 
+## 8.5 Populating a listing (push flow)
+
+Source of truth:
+
+- `apps/mobile/store-listing.yml` — declarative text (title, short/full description, contact email/website, privacy policy URL, default language). Committed.
+- `apps/mobile/store-assets/` — committed image assets: `icon-512.png`, `feature-graphic-1024x500.png`, `screenshot-*.png`. Regenerated, never hand-edited.
+
+Three tasks, run in order:
+
+```bash
+task dev:play:assets:regenerate   # ImageMagick + Playwright → apps/mobile/store-assets/
+task dev:play:listing:push        # text fields → Play Console
+task dev:play:images:push         # images → Play Console
+task dev:play:status              # verify
+```
+
+Scripts:
+
+- `infra/scripts/play-auth.ts` — shared JWT → access token helper + the `stripCompletedReleasesFromAllTracks` draft-app commit workaround (see below).
+- `infra/scripts/play-listing-push.ts` — creates an edit, PATCH `details` (contact email + website + default language), PUT `listings/{lang}`, strips completed releases from edit-view tracks, commits. Idempotent; try/finally deletes the edit on error.
+- `infra/scripts/play-images-push.ts` — creates an edit, uploads icon + feature graphic via the `/upload/...` endpoint (binary body, content-type `image/png`), DELETEs all `phoneScreenshots` then POSTs each, strips completed releases, commits. Idempotent.
+- `infra/scripts/capture-store-screenshots.ts` — ImageMagick for icon + feature graphic, Playwright (via `apps/regression/node_modules/@playwright/test`) for 1080×1920 captures of the scan URL and authenticated dashboard. Demo account `ramesh@reviewapp.demo` / `Demo123` by default.
+
+### 8.5.1 Privacy policy URL
+
+Play's v3 `AppDetails` resource does **not** include `privacyPolicy`. The URL lives in the manifest for a single source of truth but must be set once via Play Console → Policy → App content. The script logs a reminder.
+
+### 8.5.2 Draft-app commit workaround
+
+Before the app has gone through first production review ("draft app" state), Play rejects any edit commit with:
+
+```
+400 Only releases with status draft may be created on draft app.
+```
+
+…if any track snapshot in the edit carries a non-draft release (e.g. the first manual upload's `completed versionCode=13` on the internal track). The `changesNotSentForReview` query param is rejected either way (`false` → same 400, `true` → "must not be set").
+
+Workaround: before commit, for every track in the edit, PUT the track with only `status === "draft"` releases retained. Play preserves completed releases server-side independently — `play-status` still shows them after commit. This unsticks listing/details/image commits without affecting live state.
+
+Once the app has its first production release reviewed, this workaround becomes a no-op (all tracks are draft-only by nature of how subsequent edits work).
+
 ## 9. Follow-ups (not blocking)
 
 - **`--json` output mode** for piping into other scripts.
 - **`task dev:play:promote`** — POST a release to a higher track (internal → beta). Requires the edit flow to commit, not just read; and user confirmation guard similar to the `confirm: deploy-mobile` pattern.
-- **`task dev:play:listing:push`** — wrap `eas metadata` or equivalent to set title, descriptions, contact email/website, feature graphic from a declarative YAML. Spec 31 territory.
+- ~~`task dev:play:listing:push` — wrap `eas metadata` or equivalent to set title, descriptions, contact email/website, feature graphic from a declarative YAML. Spec 31 territory.~~ Shipped in §8.5.
 - **Health-check integration** — surface Play listing completeness in `task dev:health` alongside Cloud Run `/health`. Nice-to-have, not load-bearing.
+- **Prod mirror** — replicate `dev:play:*` under a `prod:` label once a second Play account is in play (currently `sg.reviewapp.app` is the only app and `.env.dev` is the only vault scope).
 
 ## 10. Invariants
 
