@@ -82,6 +82,17 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      # ── Android versionCode bump (production only) ──────────────
+      # eas build --local doesn't reliably auto-increment, so bump explicitly.
+      # GITHUB_RUN_NUMBER is monotonic per-workflow; offset keeps us above any
+      # manual versionCodes (last manual was 13, run ~30+ at migration).
+      - name: Bump Android versionCode
+        if: inputs.profile == 'production'
+        run: |
+          NEW_VC=$((100 + GITHUB_RUN_NUMBER))
+          jq ".expo.android.versionCode = $NEW_VC" app.json > app.json.tmp && mv app.json.tmp app.json
+          echo "versionCode → $NEW_VC"
+
       # ── Builds ──────────────────────────────────────────────────
       - name: Build APK (preview, local)
         if: inputs.profile == 'preview'
