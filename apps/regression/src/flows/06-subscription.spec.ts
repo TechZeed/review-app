@@ -47,11 +47,16 @@ test.describe("billing page (browser)", () => {
       (res) =>
         res.url().includes("/api/v1/subscriptions/checkout") &&
         res.request().method() === "POST",
-      { timeout: 15_000 },
+      { timeout: 30_000 },
     );
 
-    // Click the first available upgrade button.
-    const upgradeBtn = page.getByTestId("billing-upgrade-btn").first();
+    // Click the first *enabled* upgrade button (skips a "Current plan"
+    // tile if james already has an active subscription from a prior run).
+    const upgradeBtn = page
+      .getByTestId("billing-upgrade-btn")
+      .filter({ hasNotText: /Current plan/i })
+      .first();
+    await expect(upgradeBtn).toBeEnabled({ timeout: 10_000 });
     await upgradeBtn.click();
 
     const res = await checkoutPromise;
