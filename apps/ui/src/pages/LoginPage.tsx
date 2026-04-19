@@ -2,6 +2,23 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { signInWithGoogle, signInWithEmailPassword, type ExchangeTokenResponse } from '../lib/auth-service';
+import { apiFetch } from '../lib/api';
+
+// Spec 28 §10 — UI reads capabilities from /subscriptions/me so paid-feature
+// nav/guards don't depend on role. Fetched once on login; don't block login.
+interface SubscriptionMeResponse {
+  capabilities?: Array<{ capability: string; source: string; expiresAt: string | null }>;
+}
+
+async function fetchCapabilities(token: string): Promise<string[]> {
+  try {
+    const res = await apiFetch<SubscriptionMeResponse>('/api/v1/subscriptions/me', { token });
+    return (res.capabilities ?? []).map((c) => c.capability);
+  } catch (err) {
+    console.warn('Failed to fetch capabilities; defaulting to []', err);
+    return [];
+  }
+}
 
 const EMAIL_LOGIN_ENABLED = import.meta.env.VITE_FEATURE_EMAIL_LOGIN === 'true';
 
@@ -21,7 +38,8 @@ export default function LoginPage() {
     return null;
   }
 
-  const completeSignIn = (res: ExchangeTokenResponse) => {
+  const completeSignIn = async (res: ExchangeTokenResponse) => {
+    const capabilities = await fetchCapabilities(res.accessToken);
     setUser({
       token: res.accessToken,
       id: res.user.id,
@@ -29,6 +47,7 @@ export default function LoginPage() {
       role: res.user.role,
       name: res.user.name,
       profile_slug: '',
+      capabilities,
     });
     navigate(homeForRole(res.user.role), { replace: true });
   };
@@ -37,7 +56,7 @@ export default function LoginPage() {
     setError('');
     setLoading('google');
     try {
-      completeSignIn(await signInWithGoogle());
+      await completeSignIn(await signInWithGoogle());
     } catch (err: any) {
       if (err?.code === 'auth/popup-closed-by-user') {
         setLoading(null);
@@ -54,7 +73,7 @@ export default function LoginPage() {
     setError('');
     setLoading('password');
     try {
-      completeSignIn(await signInWithEmailPassword(email, password));
+      await completeSignIn(await signInWithEmailPassword(email, password));
     } catch (err: any) {
       // API throws Error("API error 401: {body}") on invalid credentials.
       const msg = err instanceof Error ? err.message : '';

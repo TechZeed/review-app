@@ -19,6 +19,9 @@ export interface AuthUser {
   role: string;
   name: string;
   profile_slug: string;
+  // Spec 28 — capability-based access. Paid features are gated by this list,
+  // not by `role`. Empty array for users with no active paid capability.
+  capabilities: string[];
 }
 
 interface AuthContextType {
@@ -68,7 +71,11 @@ function HomeRoute() {
 export default function App() {
   const [user, setUser] = useState<AuthUser | null>(() => {
     const stored = localStorage.getItem('auth_user');
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as AuthUser;
+    // Backfill capabilities for users whose localStorage pre-dates spec 28.
+    if (!Array.isArray(parsed.capabilities)) parsed.capabilities = [];
+    return parsed;
   });
 
   const handleSetUser = (u: AuthUser | null) => {
