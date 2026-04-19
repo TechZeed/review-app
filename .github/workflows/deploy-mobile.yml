@@ -51,6 +51,12 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: write  # needed to create the GitHub Release
+    # EXPO_PUBLIC_* vars are baked into the JS bundle at build time. Without
+    # this, the email+password affordance on the login screen stays hidden
+    # (EMAIL_LOGIN_ENABLED = process.env.EXPO_PUBLIC_FEATURE_EMAIL_LOGIN === 'true').
+    # Mirrors the web VITE_FEATURE_EMAIL_LOGIN default in deploy.yml.
+    env:
+      EXPO_PUBLIC_FEATURE_EMAIL_LOGIN: ${{ secrets.EXPO_PUBLIC_FEATURE_EMAIL_LOGIN || 'true' }}
     defaults:
       run:
         working-directory: apps/mobile

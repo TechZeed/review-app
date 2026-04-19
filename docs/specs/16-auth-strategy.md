@@ -1,7 +1,7 @@
 # Spec 16: Authentication & User Management Strategy
 
 **Project:** ReviewApp
-**Date:** 2026-04-16 (amended 2026-04-18 — email+password is testing-only, UnifiedAuth UX added)
+**Date:** 2026-04-16 (amended 2026-04-18 — email+password testing-only, UnifiedAuth UX added; amended 2026-04-19 — mobile `EXPO_PUBLIC_FEATURE_EMAIL_LOGIN` wired into deploy-mobile.yml so the flag actually reaches the bundle)
 **Firebase Project:** humini-review
 **Decisions:** d11-d14, d19 (email+password testing-only) from huddle
 
