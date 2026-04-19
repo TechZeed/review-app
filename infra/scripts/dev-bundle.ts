@@ -27,11 +27,12 @@ import { dirname, resolve } from "node:path";
 
 const SECRET_NAME = "review-dev-bundle";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const PROJECT_DEFAULTS_FILE = resolve(REPO_ROOT, "infra/dev/project.env");
+const PROJECT_DEFAULTS_FILE = resolve(REPO_ROOT, "apps/api/config/application.dev.env");
 
-// Non-secret project identity lives in infra/dev/project.env (committed).
-// Used as a fallback when GCP_PROJECT_ID isn't in the caller env — lets
-// `dev:bundle:pull` work from a fresh clone with zero flags.
+// Non-secret project identity lives in apps/api/config/application.dev.env
+// (committed API dev defaults). Used as a fallback when GCP_PROJECT_ID isn't
+// in the caller env — lets `dev:bundle:pull` work from a fresh clone with
+// zero flags, before .env.dev has been pulled.
 function readProjectDefaults(): Record<string, string> {
   if (!existsSync(PROJECT_DEFAULTS_FILE)) return {};
   const out: Record<string, string> = {};
@@ -90,7 +91,7 @@ async function pipeAB(from: ReturnType<typeof spawn>, to: ReturnType<typeof spaw
 
 async function push(): Promise<void> {
   const project = process.env.GCP_PROJECT_ID || readProjectDefaults().GCP_PROJECT_ID;
-  if (!project) die("GCP_PROJECT_ID not set — add it to infra/dev/project.env or .env.dev");
+  if (!project) die("GCP_PROJECT_ID not set — add it to apps/api/config/application.dev.env or .env.dev");
 
   if (!secretExists(project)) {
     console.log(`Secret ${SECRET_NAME} not found — creating under project ${project}`);
@@ -126,7 +127,7 @@ async function pull(argv: string[]): Promise<void> {
     readProjectDefaults().GCP_PROJECT_ID ||
     gcloudProjectFromConfig();
   if (!project) {
-    die("No project id. Pass --project=<id>, set GCP_PROJECT_ID, add to infra/dev/project.env, or `gcloud config set project <id>`.");
+    die("No project id. Pass --project=<id>, set GCP_PROJECT_ID, add to apps/api/config/application.dev.env, or `gcloud config set project <id>`.");
   }
 
   console.log(`→ Fetching ${SECRET_NAME} from project ${project} …`);

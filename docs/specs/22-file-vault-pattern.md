@@ -108,7 +108,7 @@ During `resolveAllSecrets()` at boot, iterate every env key ending in `_PATH`, r
 
 - **Secret name:** `review-dev-bundle` (in project `$GCP_PROJECT_ID`).
 - **Contents:** `tar czf - .env.dev infra/dev/vault/ | base64` — base64 wrap is required because `gcloud secrets versions access` corrupts raw gzip bytes via UTF-8 re-encoding on stdout.
-- **Script:** `infra/scripts/dev-bundle.ts` (bun). Project id resolves from, in order: `--project=<id>` flag → `$GCP_PROJECT_ID` env → `infra/dev/project.env` (committed, non-secret defaults) → `gcloud config get-value project`. So on a fresh clone `task dev:bundle:pull` works with zero flags — the committed project.env carries the identity.
+- **Script:** `infra/scripts/dev-bundle.ts` (bun). Project id resolves from, in order: `--project=<id>` flag → `$GCP_PROJECT_ID` env → `apps/api/config/application.dev.env` (committed, non-secret defaults) → `gcloud config get-value project`. So on a fresh clone `task dev:bundle:pull` works with zero flags — the committed project.env carries the identity.
 - **Tasks:**
   - `task dev:bundle:push` — tars `.env.dev` + `infra/dev/vault/`, base64-encodes, uploads as a new version of `review-dev-bundle`. Creates the secret on first run.
   - `task dev:bundle:pull -- --project=<id>` — fetches latest version, base64-decodes, untars at repo root. Overwrites existing files in place.
@@ -129,7 +129,7 @@ During `resolveAllSecrets()` at boot, iterate every env key ending in `_PATH`, r
 git clone <repo>
 cd review-app
 gcloud auth login
-task dev:bundle:pull  # project id read from infra/dev/project.env
+task dev:bundle:pull  # project id read from apps/api/config/application.dev.env
 # .env.dev + infra/dev/vault/* now in place — task dev:* commands work
 ```
 
