@@ -43,7 +43,8 @@ Key tasks:
 - `local:bootstrap` — first-run setup: `infra:up` + wait-healthy + `migrate` + `seed`
 - `local:dev` — day-to-day: ensure infra up, start API dev server
 - `local:infra:up | down | reset | ps | wait` — manage the local docker-compose stack
-- `local:server | migrate | seed | psql | test | build` — individual ops (thin wrappers over `infra/scripts/run.sh local …`)
+- `local:server | migrate | seed | psql | test | build` — individual API ops (thin wrappers over `infra/scripts/run.sh local …`)
+- `local:build:web | build:ui` — tsc + vite build check for the two frontends (mirrors the Cloud Run build step; use before pushing to catch build breaks that only show up in the deploy container)
 - `local:stripe:listen` — forward Stripe webhooks to local API
 
 **Dev** (deploys to GCP, reads `.env.dev`):

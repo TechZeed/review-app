@@ -95,5 +95,19 @@ tasks:
     cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh local test"
 
   build:
-    desc: TypeScript build check
+    desc: TypeScript build check (API)
     cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh local build"
+
+  build:web:
+    desc: tsc + vite build check for apps/web (mirrors the Cloud Run build step)
+    env:
+      APP_ENV: '{{.APP_ENV | default "local"}}'
+    cmd: |
+      cd {{.REPO_ROOT}}/apps/web && npm run build
+
+  build:ui:
+    desc: tsc + vite build check for apps/ui (mirrors the Cloud Run build step)
+    env:
+      APP_ENV: '{{.APP_ENV | default "local"}}'
+    cmd: |
+      cd {{.REPO_ROOT}}/apps/ui && npm run build
