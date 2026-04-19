@@ -115,6 +115,12 @@ const PLANS: Plan[] = [
 ];
 
 // ── API types ─────────────────────────────────────────────────────────────
+interface ActiveCapability {
+  capability: string; // 'pro' | 'employer' | 'recruiter'
+  source: string; // 'subscription' | 'admin-grant'
+  expiresAt: string | null;
+}
+
 interface SubscriptionMe {
   tier: string; // 'free' | 'pro' | 'employer' | 'recruiter'
   status: string; // 'active' | 'trialing' | 'past_due' | 'cancelled' | 'none' | …
@@ -122,6 +128,8 @@ interface SubscriptionMe {
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
   stripeSubscriptionId?: string | null;
+  // Spec 28 — all active capabilities for this user (may be empty).
+  capabilities?: ActiveCapability[];
 }
 
 interface CheckoutResponse {
@@ -146,12 +154,13 @@ async function api<T>(path: string, token: string, init: RequestInit = {}): Prom
   return res.json();
 }
 
-function groupForRole(role: string | undefined): TierGroup {
-  if (role === 'EMPLOYER') return 'employer';
-  if (role === 'RECRUITER') return 'recruiter';
-  // INDIVIDUAL + ADMIN (admin can preview the individual catalogue).
-  return 'individual';
-}
+// Spec 28 — no role-based plan filtering. Every user sees every plan group;
+// the current-plan card lists all active capabilities from /subscriptions/me.
+const GROUP_LABELS: Record<TierGroup, string> = {
+  individual: 'Individual',
+  employer: 'Employer',
+  recruiter: 'Recruiter',
+};
 
 export default function BillingPage() {
   const { user } = useAuth();
@@ -160,9 +169,6 @@ export default function BillingPage() {
   const [pendingTier, setPendingTier] = useState<string | null>(null);
 
   if (!user) return <Navigate to="/login" replace />;
-
-  const group = groupForRole(user.role);
-  const visiblePlans = PLANS.filter((p) => p.group === group);
 
   const currentQuery = useQuery<SubscriptionMe>({
     queryKey: ['subscription', 'me'],
@@ -228,10 +234,11 @@ export default function BillingPage() {
     ? PLANS.find(
         (p) =>
           p.dbTier === current?.tier &&
-          (current?.billingCycle ? p.cycle === current.billingCycle : true) &&
-          p.group === group,
+          (current?.billingCycle ? p.cycle === current.billingCycle : true),
       )
     : undefined;
+
+  const activeCapabilities: ActiveCapability[] = current?.capabilities ?? [];
 
   function ctaFor(plan: Plan): { label: string; variant: 'primary' | 'secondary' | 'danger' } {
     if (!hasActive) return { label: 'Subscribe', variant: 'primary' };
@@ -280,90 +287,130 @@ export default function BillingPage() {
                 : 'unknown error'}
             </p>
           ) : (
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div>
-                <div className="text-2xl font-bold text-gray-900 capitalize">
-                  {current?.tier ?? 'free'}
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <div className="text-2xl font-bold text-gray-900 capitalize">
+                    {current?.tier ?? 'free'}
+                  </div>
+                  <div className="text-sm text-gray-600 mt-1">
+                    Status: <span data-testid="billing-status">{current?.status ?? 'none'}</span>
+                    {current?.currentPeriodEnd && (
+                      <>
+                        {' '}
+                        · renews{' '}
+                        {new Date(current.currentPeriodEnd).toLocaleDateString()}
+                      </>
+                    )}
+                    {current?.cancelAtPeriodEnd && (
+                      <span className="ml-2 inline-block px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">
+                        cancels at period end
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600 mt-1">
-                  Status: <span data-testid="billing-status">{current?.status ?? 'none'}</span>
-                  {current?.currentPeriodEnd && (
-                    <>
-                      {' '}
-                      · renews{' '}
-                      {new Date(current.currentPeriodEnd).toLocaleDateString()}
-                    </>
-                  )}
-                  {current?.cancelAtPeriodEnd && (
-                    <span className="ml-2 inline-block px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">
-                      cancels at period end
-                    </span>
-                  )}
-                </div>
+                {hasActive && !current?.cancelAtPeriodEnd && (
+                  <button
+                    type="button"
+                    onClick={() => cancelMutation.mutate()}
+                    disabled={cancelMutation.isPending}
+                    className="text-sm text-red-700 hover:text-red-900 px-3 py-1.5 rounded-md border border-red-300 hover:bg-red-50 disabled:opacity-50"
+                    data-testid="billing-cancel-btn"
+                  >
+                    {cancelMutation.isPending ? 'Cancelling…' : 'Cancel subscription'}
+                  </button>
+                )}
               </div>
-              {hasActive && !current?.cancelAtPeriodEnd && (
-                <button
-                  type="button"
-                  onClick={() => cancelMutation.mutate()}
-                  disabled={cancelMutation.isPending}
-                  className="text-sm text-red-700 hover:text-red-900 px-3 py-1.5 rounded-md border border-red-300 hover:bg-red-50 disabled:opacity-50"
-                  data-testid="billing-cancel-btn"
-                >
-                  {cancelMutation.isPending ? 'Cancelling…' : 'Cancel subscription'}
-                </button>
-              )}
+
+              {/* Spec 28 — list every active capability. A single user may
+                  hold pro + employer + recruiter concurrently. */}
+              <div data-testid="billing-active-capabilities">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  Active capabilities
+                </h3>
+                {activeCapabilities.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    No active paid capabilities. Subscribe below to unlock features.
+                  </p>
+                ) : (
+                  <ul className="flex flex-wrap gap-2">
+                    {activeCapabilities.map((c) => (
+                      <li
+                        key={c.capability}
+                        data-testid="billing-active-capability"
+                        data-capability={c.capability}
+                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 border border-green-200 text-sm text-green-800"
+                      >
+                        <span className="capitalize font-medium">{c.capability}</span>
+                        <span className="text-xs text-green-700">
+                          · {c.source === 'admin-grant' ? 'admin grant' : 'subscription'}
+                          {c.expiresAt && (
+                            <> · expires {new Date(c.expiresAt).toLocaleDateString()}</>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           )}
         </section>
 
-        {/* Plan grid */}
-        <section>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
-            Available plans for {group} accounts
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {visiblePlans.map((plan) => {
-              const cta = ctaFor(plan);
-              const key = plan.tier + ':' + plan.cycle;
-              const isPending = pendingTier === key && checkoutMutation.isPending;
-              const isCurrent = cta.label === 'Current plan';
-              return (
-                <div
-                  key={key}
-                  className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col"
-                  data-testid="billing-plan-card"
-                  data-plan-tier={plan.tier}
-                  data-plan-cycle={plan.cycle}
-                >
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{plan.name}</h3>
-                    <p className="text-lg font-bold text-gray-900 mt-1">{plan.price}</p>
-                    <p className="text-sm text-gray-600 mt-2">{plan.blurb}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => checkoutMutation.mutate(plan)}
-                    disabled={isPending || isCurrent}
-                    className={
-                      'mt-4 px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 ' +
-                      (cta.variant === 'primary'
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : cta.variant === 'danger'
-                          ? 'bg-red-600 text-white hover:bg-red-700'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200')
-                    }
-                    data-testid="billing-upgrade-btn"
-                  >
-                    {isPending ? 'Redirecting to Stripe…' : cta.label}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-          <p className="text-xs text-gray-500 mt-4">
-            Test mode — use card 4242 4242 4242 4242, any future expiry, any CVC.
-          </p>
-        </section>
+        {/* Spec 28 — show every plan group. Capability unlocks the feature,
+            regardless of the user's primary role. */}
+        {(['individual', 'employer', 'recruiter'] as TierGroup[]).map((grp) => {
+          const groupPlans = PLANS.filter((p) => p.group === grp);
+          return (
+            <section key={grp} data-testid={`billing-group-${grp}`}>
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                {GROUP_LABELS[grp]} plans
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {groupPlans.map((plan) => {
+                  const cta = ctaFor(plan);
+                  const key = plan.tier + ':' + plan.cycle;
+                  const isPending = pendingTier === key && checkoutMutation.isPending;
+                  const isCurrent = cta.label === 'Current plan';
+                  return (
+                    <div
+                      key={key}
+                      className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col"
+                      data-testid="billing-plan-card"
+                      data-plan-tier={plan.tier}
+                      data-plan-cycle={plan.cycle}
+                    >
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900">{plan.name}</h3>
+                        <p className="text-lg font-bold text-gray-900 mt-1">{plan.price}</p>
+                        <p className="text-sm text-gray-600 mt-2">{plan.blurb}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => checkoutMutation.mutate(plan)}
+                        disabled={isPending || isCurrent}
+                        className={
+                          'mt-4 px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 ' +
+                          (cta.variant === 'primary'
+                            ? 'bg-blue-600 text-white hover:bg-blue-700'
+                            : cta.variant === 'danger'
+                              ? 'bg-red-600 text-white hover:bg-red-700'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200')
+                        }
+                        data-testid="billing-upgrade-btn"
+                      >
+                        {isPending ? 'Redirecting to Stripe…' : cta.label}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+        <p className="text-xs text-gray-500">
+          Test mode — use card 4242 4242 4242 4242, any future expiry, any CVC.
+        </p>
       </main>
     </div>
   );
