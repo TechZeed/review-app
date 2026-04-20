@@ -6,6 +6,7 @@ import ThumbsUpButton from "../components/ThumbsUpButton";
 import OtpInput from "../components/OtpInput";
 import MediaPrompt from "../components/MediaPrompt";
 import ThankYou from "../components/ThankYou";
+import { scanProfile } from "../lib/scan";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 
@@ -116,19 +117,17 @@ export default function ReviewPage() {
   };
 
   const handleSubmit = async () => {
-    if (!profile || selectedQualities.length === 0) return;
+    if (!profile || !slug || selectedQualities.length === 0) return;
     setIsSubmitting(true);
 
     try {
       // Step 1: Initiate scan
-      const scanRes = await fetch(`${API_URL}/api/v1/reviews/scan/${slug}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deviceFingerprint: await getDeviceFingerprint() }),
-      });
-      const scanData = await scanRes.json();
-      if (!scanRes.ok) throw new Error(scanData.message || "Failed to start review");
-      setReviewToken(scanData.reviewToken || scanData.review_token || "");
+      const scanData = await scanProfile(
+        API_URL,
+        slug,
+        await getDeviceFingerprint(),
+      );
+      setReviewToken(scanData.reviewToken);
       setIsSubmitted(true);
 
       // Show checkmark animation, then move to OTP
