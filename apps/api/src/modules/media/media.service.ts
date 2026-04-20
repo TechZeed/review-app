@@ -149,7 +149,7 @@ export class MediaService {
       signedUrl,
       expiresAt,
       mediaType: media.mediaType,
-      duration: media.durationSeconds ?? undefined,
+      duration: media.durationSeconds,
       transcription: media.transcription,
     };
   }
