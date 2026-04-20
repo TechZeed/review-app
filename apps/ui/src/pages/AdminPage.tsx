@@ -29,6 +29,10 @@ interface AdminUser {
 
 const ADMIN_ROLES: AdminUser['role'][] = ['INDIVIDUAL', 'EMPLOYER', 'RECRUITER', 'ADMIN'];
 
+function isAdminRole(value: string): value is AdminUser['role'] {
+  return ADMIN_ROLES.includes(value as AdminUser['role']);
+}
+
 async function api<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -78,7 +82,6 @@ export default function AdminPage() {
       }),
     onMutate: ({ id }) => {
       setRowErrors((prev) => {
-        if (!(id in prev)) return prev;
         const next = { ...prev };
         delete next[id];
         return next;
@@ -86,7 +89,7 @@ export default function AdminPage() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
     onError: (error, { id }) => {
-      setRowErrors((prev) => ({ ...prev, [id]: error instanceof Error ? error.message : 'Failed to update role.' }));
+      setRowErrors((prev) => ({ ...prev, [id]: error instanceof Error ? error.message : 'Failed to update role' }));
     },
   });
 
@@ -98,7 +101,6 @@ export default function AdminPage() {
       }),
     onMutate: ({ id }) => {
       setRowErrors((prev) => {
-        if (!(id in prev)) return prev;
         const next = { ...prev };
         delete next[id];
         return next;
@@ -106,7 +108,7 @@ export default function AdminPage() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
     onError: (error, { id }) => {
-      setRowErrors((prev) => ({ ...prev, [id]: error instanceof Error ? error.message : 'Failed to update user status.' }));
+      setRowErrors((prev) => ({ ...prev, [id]: error instanceof Error ? error.message : 'Failed to update user status' }));
     },
   });
 
@@ -228,7 +230,9 @@ export default function AdminPage() {
                               disabled={isPending}
                               className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-900 disabled:opacity-50"
                               onChange={(e) => {
-                                const role = e.currentTarget.value as AdminUser['role'];
+                                const selectedValue = e.currentTarget.value;
+                                if (!isAdminRole(selectedValue)) return;
+                                const role = selectedValue;
                                 if (role === u.role) return;
                                 updateRole.mutate({ id: u.id, role });
                               }}
@@ -249,13 +253,9 @@ export default function AdminPage() {
                                 type="button"
                                 disabled={isPending || isSelf}
                                 onClick={() => {
-                                  if (
-                                    !window.confirm(
-                                      `${statusLabel} ${u.email}?`,
-                                    )
-                                  )
-                                    return;
-                                  updateStatus.mutate({ id: u.id, status: nextStatus });
+                                  if (window.confirm(`${statusLabel} ${u.email}?`)) {
+                                    updateStatus.mutate({ id: u.id, status: nextStatus });
+                                  }
                                 }}
                                 className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
                               >

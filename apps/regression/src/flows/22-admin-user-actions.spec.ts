@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { primeDashboardSession } from "../lib/browserAuth.js";
 import { openDb, closeDb, type DbCtx } from "../lib/dbProxy.js";
 import type { Client } from "pg";
@@ -31,18 +31,30 @@ async function getUserState(email: string): Promise<UserState> {
   return rows[0];
 }
 
+async function openAdminUsersTab(page: Page): Promise<void> {
+  await page.goto("/login");
+  try {
+    await primeDashboardSession(page, "admin@reviewapp.demo");
+  } catch (error) {
+    // Admin users can be redirected straight to /admin, so the helper's
+    // wait for dashboard-root can fail even though auth succeeded.
+    if (!(error instanceof Error) || !error.message.includes("dashboard-root")) throw error;
+  }
+  await page.goto("/admin");
+  await expect(page.getByTestId("admin-root")).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId("admin-tab-users").click();
+}
+
 test.describe("admin user actions (ui)", () => {
   test("admin changes priya role via Users tab dropdown", async ({ page }) => {
     const original = await getUserState("priya@reviewapp.demo");
-    const targetRole: UserState["role"] =
-      original.role === "EMPLOYER" ? "INDIVIDUAL" : "EMPLOYER";
+    if (original.role === "ADMIN" || original.role === "RECRUITER") {
+      test.skip(true, `unexpected seeded role for priya: ${original.role}`);
+    }
+    const targetRole: UserState["role"] = original.role === "EMPLOYER" ? "INDIVIDUAL" : "EMPLOYER";
 
     try {
-      await page.goto("/login");
-      await primeDashboardSession(page, "admin@reviewapp.demo").catch(() => {});
-      await page.goto("/admin");
-      await expect(page.getByTestId("admin-root")).toBeVisible({ timeout: 15_000 });
-      await page.getByTestId("admin-tab-users").click();
+      await openAdminUsersTab(page);
 
       const row = page
         .getByTestId("admin-user-row")
@@ -66,11 +78,7 @@ test.describe("admin user actions (ui)", () => {
     const original = await getUserState("priya@reviewapp.demo");
 
     try {
-      await page.goto("/login");
-      await primeDashboardSession(page, "admin@reviewapp.demo").catch(() => {});
-      await page.goto("/admin");
-      await expect(page.getByTestId("admin-root")).toBeVisible({ timeout: 15_000 });
-      await page.getByTestId("admin-tab-users").click();
+      await openAdminUsersTab(page);
 
       const row = page
         .getByTestId("admin-user-row")
