@@ -148,6 +148,39 @@ tasks:
     dir: "{{.REPO_ROOT}}/apps/regression"
     cmd: cd {{.REPO_ROOT}}/apps/regression && set -a && . {{.REPO_ROOT}}/.env.regression && set +a && npx --no-install playwright test --project=smoke
 
+  # ─── Mobile regression (Maestro, spec 35) ────────────────────────────────────
+
+  test:regression:mobile:
+    desc: Run Maestro flows against a connected Android device or running emulator
+    dir: "{{.REPO_ROOT}}/apps/regression/maestro"
+    cmd: $HOME/.maestro/bin/maestro test .
+
+  test:regression:mobile:flow:
+    desc: Run a single Maestro flow, e.g. `task dev:test:regression:mobile:flow -- 01-launch.yaml`
+    dir: "{{.REPO_ROOT}}/apps/regression/maestro"
+    cmd: $HOME/.maestro/bin/maestro test {{.CLI_ARGS}}
+
+  test:regression:mobile:install:
+    desc: Install the latest preview APK from GitHub Releases onto the connected device
+    cmd: |
+      mkdir -p /tmp/reviewapp-regression
+      TAG=$(gh release list --limit 10 --json tagName,createdAt --jq '[.[] | select(.tagName | startswith("mobile-preview-"))] | sort_by(.createdAt) | reverse | .[0].tagName')
+      echo "Installing preview APK from $TAG"
+      gh release download "$TAG" --pattern preview.apk --dir /tmp/reviewapp-regression --clobber
+      adb install -r /tmp/reviewapp-regression/preview.apk
+
+  test:regression:mobile:emulator:
+    desc: Boot an Android emulator (default pixel_7_api_34), install latest preview APK, run Maestro
+    cmd: |
+      EMULATOR_NAME="{{.CLI_ARGS | default "pixel_7_api_34"}}"
+      $ANDROID_HOME/emulator/emulator -avd "$EMULATOR_NAME" -no-snapshot -no-audio &
+      adb wait-for-device && adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+      TAG=$(gh release list --limit 10 --json tagName,createdAt --jq '[.[] | select(.tagName | startswith("mobile-preview-"))] | sort_by(.createdAt) | reverse | .[0].tagName')
+      mkdir -p /tmp/reviewapp-regression
+      gh release download "$TAG" --pattern preview.apk --dir /tmp/reviewapp-regression --clobber
+      adb install -r /tmp/reviewapp-regression/preview.apk
+      cd {{.REPO_ROOT}}/apps/regression/maestro && $HOME/.maestro/bin/maestro test .
+
   bundle:pull:
     desc: Fetch review-dev-bundle from GCP Secret Manager (falls back to `gcloud config` project) and unpack into repo root
     cmd: bun run {{.REPO_ROOT}}/infra/scripts/dev-bundle.ts pull {{.CLI_ARGS}}
