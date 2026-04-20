@@ -45,23 +45,6 @@ test.describe("recruiter search results (spec 12)", () => {
     await suiteApi.dispose();
   });
 
-  // Probe the API up-front; if recruiter search still 500s we skip
-  // result-row assertions but keep the file green.
-  async function recruiterSearchOk(token: string): Promise<boolean> {
-    const probe = await request.newContext({ baseURL: API_URL });
-    try {
-      const res = await probe.post("/api/v1/recruiter/search", {
-        headers: { authorization: `Bearer ${token}` },
-        data: { limit: 1 },
-      });
-      return res.ok();
-    } catch {
-      return false;
-    } finally {
-      await probe.dispose();
-    }
-  }
-
   test("rachel searches by name and gets Ramesh, filters narrow/restore", async ({ page }) => {
     await page.goto("/login");
     const { accessToken } = await primeDashboardSession(page, "rachel@reviewapp.demo").catch(
@@ -71,11 +54,6 @@ test.describe("recruiter search results (spec 12)", () => {
         const { accessToken } = await loginAs(suiteApi, "rachel@reviewapp.demo");
         return { accessToken };
       },
-    );
-
-    test.skip(
-      !(await recruiterSearchOk(accessToken)),
-      "API gap: POST /api/v1/recruiter/search not OK (recruiter_blocks migration / contract drift — spec 12 §13.6)",
     );
 
     await page.goto("/recruiter");
@@ -131,11 +109,6 @@ test.describe("recruiter search results (spec 12)", () => {
         const { accessToken } = await loginAs(suiteApi, "rachel@reviewapp.demo");
         return { accessToken };
       },
-    );
-
-    test.skip(
-      !(await recruiterSearchOk(accessToken)),
-      "API gap: POST /api/v1/recruiter/search not OK",
     );
 
     await page.goto("/recruiter");
