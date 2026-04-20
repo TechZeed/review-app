@@ -37,7 +37,7 @@ L4: MSW unit test (component + contract)    L5: regression flow
 
 | Spec | Story | New API? | New DB? | Dispatch order |
 |---|---|---|---|---|
-| **44** | Admin creates a new user + grants/revokes capabilities | No (APIs exist) | No | 1st (shortest path, closes the 3 glaring gaps) |
+| **44** | Admin creates a new user + grants/revokes capabilities **(Shipped)** | No (APIs exist) | No | 1st (shortest path, closes the 3 glaring gaps) |
 | **45** | Admin searches + paginates users, opens single user detail | Yes — `?search=` + `?page/limit` on `/admin/users`, new `GET /admin/users/:id` | No | 2nd |
 | **46** | Admin audit log — every admin mutation writes a row; `/admin/audit-log` reads them | Yes — `GET /admin/audit-log` + writes from every existing admin mutation | **Yes — `admin_audit_log` table** | 3rd (infra-first — once this lands, later slices backfill writes) |
 | **47** | Admin anonymizes a user (GDPR-friendly soft delete — blanks PII, keeps reviews) | Yes — `DELETE /admin/users/:id` (soft, anonymize semantics) | No (flag columns exist) | 4th |

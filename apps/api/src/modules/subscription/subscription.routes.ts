@@ -2,7 +2,7 @@ import express, { Router } from 'express';
 import { SubscriptionController } from './subscription.controller.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { validateBody } from '../../middleware/validate.js';
-import { createCheckoutSchema, cancelSchema } from './subscription.validation.js';
+import { createCheckoutSchema, cancelSchema, createPortalSchema } from './subscription.validation.js';
 
 export const subscriptionRouter = Router();
 const controller = new SubscriptionController();
@@ -23,6 +23,13 @@ subscriptionRouter.post(
   '/checkout',
   validateBody(createCheckoutSchema),
   controller.checkout,
+);
+
+// POST /portal — create a Stripe billing portal session
+subscriptionRouter.post(
+  '/portal',
+  validateBody(createPortalSchema),
+  controller.portal,
 );
 
 // GET /me — get current subscription

@@ -32,4 +32,22 @@ test.describe("dashboard login (browser)", () => {
     expect(await cards.count()).toBeGreaterThan(0);
     await expect(cards.first()).toBeVisible();
   });
+
+  const profileUsers = [
+    "james@reviewapp.demo",
+    "rachel@reviewapp.demo",
+    "admin@reviewapp.demo",
+    "ramesh@reviewapp.demo",
+  ] as const;
+
+  for (const email of profileUsers) {
+    test(`${email} sees dashboard profile card without API permission error`, async ({ page }) => {
+      await primeDashboardSession(page, email);
+
+      await expect(page.getByTestId("profile-card")).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText(/failed to load profile/i)).toHaveCount(0);
+      await expect(page.getByText(/api error 403/i)).toHaveCount(0);
+      await expect(page.getByText(/insufficient permissions/i)).toHaveCount(0);
+    });
+  }
 });

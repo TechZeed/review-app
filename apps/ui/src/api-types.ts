@@ -526,11 +526,13 @@ export interface paths {
             };
             responses: {
                 /** @description OK */
-                200: {
+                201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["CreateUserResponse"];
+                    };
                 };
                 /** @description Unauthorized */
                 401: {
@@ -1024,11 +1026,13 @@ export interface paths {
             };
             responses: {
                 /** @description OK */
-                200: {
+                201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["GrantCapabilityResponse"];
+                    };
                 };
                 /** @description Unauthorized */
                 401: {
@@ -1100,7 +1104,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RevokeCapabilityResponse"];
+                    };
                 };
                 /** @description Unauthorized */
                 401: {
@@ -3521,6 +3527,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reviews/{reviewId}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POST /api/v1/reviews/{reviewId}/media */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    reviewId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["ReviewMediaText"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Rate-limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reviews/my-submissions": {
         parameters: {
             query?: never;
@@ -3821,6 +3901,78 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": components["schemas"]["CreateCheckout"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Rate-limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/subscriptions/portal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POST /api/v1/subscriptions/portal */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreatePortal"];
                 };
             };
             responses: {
@@ -4340,6 +4492,10 @@ export interface components {
             cancelAtPeriodEnd?: boolean;
             stripeSubscriptionId?: string | null;
             capabilities: components["schemas"]["Capability"][];
+            reconciliation: {
+                consistent: boolean;
+                issues: ("tier-without-capability" | "orphan-capability")[];
+            };
         };
         QualityBreakdown: {
             expertise: number;
@@ -4410,6 +4566,24 @@ export interface components {
             /** @enum {string} */
             capability: "pro" | "employer" | "recruiter";
         };
+        CreateUserResponse: {
+            user: {
+                /** Format: uuid */
+                id: string;
+                /** Format: email */
+                email: string;
+                name: string;
+                /** @enum {string} */
+                role: "INDIVIDUAL" | "EMPLOYER" | "RECRUITER" | "ADMIN";
+                /** @enum {string} */
+                status: "active" | "suspended";
+                provider: string;
+                avatarUrl?: string | null;
+                isApproved: boolean;
+                isActive: boolean;
+            };
+            accessToken: string;
+        };
         CreateUser: {
             /** Format: email */
             email: string;
@@ -4417,10 +4591,20 @@ export interface components {
             name: string;
             /** @enum {string} */
             role: "INDIVIDUAL" | "EMPLOYER" | "RECRUITER" | "ADMIN";
+            phone?: string;
         };
         ExchangeFirebaseToken: {
             firebaseToken?: string;
             firebaseIdToken?: string;
+        };
+        GrantCapabilityResponse: {
+            capabilities: {
+                /** @enum {string} */
+                capability: "pro" | "employer" | "recruiter";
+                /** @enum {string} */
+                source: "subscription" | "admin-grant";
+                expiresAt: string | null;
+            }[];
         };
         GrantCapability: {
             /** @enum {string} */
@@ -4447,6 +4631,15 @@ export interface components {
             firebaseToken: string;
             industry?: string;
             organizationName?: string;
+        };
+        RevokeCapabilityResponse: {
+            capabilities: {
+                /** @enum {string} */
+                capability: "pro" | "employer" | "recruiter";
+                /** @enum {string} */
+                source: "subscription" | "admin-grant";
+                expiresAt: string | null;
+            }[];
         };
         RoleRequestIdParam: {
             /** Format: uuid */
@@ -4500,6 +4693,17 @@ export interface components {
         MediaIdParam: {
             /** Format: uuid */
             mediaId: string;
+        };
+        ReviewMediaParam: {
+            /** Format: uuid */
+            reviewId: string;
+        };
+        ReviewMediaText: {
+            /** Format: uuid */
+            reviewToken: string;
+            /** @enum {string} */
+            type: "text";
+            content: string;
         };
         UploadMedia: {
             /** Format: uuid */
@@ -4679,6 +4883,14 @@ export interface components {
             cancelUrl: string;
             locationCount?: number;
             seatCount?: number;
+        };
+        CreatePortal: {
+            /** Format: uri */
+            returnUrl?: string;
+        };
+        Reconciliation: {
+            consistent: boolean;
+            issues: ("tier-without-capability" | "orphan-capability")[];
         };
         Initiate: {
             slug: string;

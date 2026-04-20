@@ -27,14 +27,18 @@ export class SubscriptionController {
     }
   };
 
+  portal = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const result = await this.service.createPortalSession(req.user!.id, req.body.returnUrl);
+      res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   getMe = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const subscription = await this.service.getMySubscription(req.user!.id);
-      if (!subscription) {
-        const capabilities = await this.service.listActiveCapabilities(req.user!.id);
-        res.json({ tier: 'free', status: 'none', capabilities });
-        return;
-      }
       res.json(subscription);
     } catch (error) {
       next(error);

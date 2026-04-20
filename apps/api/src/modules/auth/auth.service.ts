@@ -265,6 +265,7 @@ export class AuthService {
     const user = await this.repo.create({
       email: data.email,
       displayName: data.name,
+      phone: data.phone ?? null,
       provider: 'internal',
       passwordHash,
       role: data.role,

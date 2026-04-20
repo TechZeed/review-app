@@ -43,12 +43,20 @@ export interface SubscriptionResponse {
   quantity: number;
   createdAt: string;
   capabilities?: Array<{ capability: string; source: string; expiresAt: string | null }>;
+  reconciliation: {
+    consistent: boolean;
+    issues: Array<'tier-without-capability' | 'orphan-capability'>;
+  };
 }
 
 export interface CheckoutResponse {
   checkoutSessionId: string;
   checkoutUrl: string;
   expiresAt: number;
+}
+
+export interface PortalSessionResponse {
+  portalUrl: string;
 }
 
 export interface SubscriptionRecord {

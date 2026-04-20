@@ -8,6 +8,7 @@ import { logger } from '../../config/logger.js';
 import type {
   CreateCheckoutInput,
   CheckoutResponse,
+  PortalSessionResponse,
   SubscriptionResponse,
   SubscriptionRecord,
 } from './subscription.types.js';
@@ -35,6 +36,60 @@ const TIER_TO_DB_TIER: Record<string, string> = {
 
 export class SubscriptionService {
   constructor(private repo: SubscriptionRepository) {}
+
+  private resolvePortalReturnUrl(returnUrl?: string): string {
+    const defaultUrl = `${env.FRONTEND_URL}/billing`;
+    if (!returnUrl) return defaultUrl;
+
+    let candidate: URL;
+    let expected: URL;
+    try {
+      candidate = new URL(returnUrl);
+      expected = new URL(env.FRONTEND_URL);
+    } catch (error) {
+      const sanitizedReturnUrl = returnUrl.replace(/[\r\n\t]/g, '').slice(0, 512);
+      logger.warn('Invalid portal return URL', { returnUrl: sanitizedReturnUrl, frontendUrl: env.FRONTEND_URL, error });
+      throw new AppError('Invalid return URL', 400, 'INVALID_RETURN_URL');
+    }
+
+    if (candidate.origin !== expected.origin) {
+      throw new AppError('Invalid return URL origin', 400, 'INVALID_RETURN_URL');
+    }
+
+    return returnUrl;
+  }
+
+  private expectedCapabilityForPaidTier(tier: string): 'pro' | 'employer' | 'recruiter' | null {
+    if (tier === 'pro' || tier === 'employer' || tier === 'recruiter') return tier;
+    return null;
+  }
+
+  private computeReconciliation(
+    sub: SubscriptionRecord | null,
+    capabilities: Array<{ capability: string; source: string }>,
+  ): { consistent: boolean; issues: Array<'tier-without-capability' | 'orphan-capability'> } {
+    const issues: Array<'tier-without-capability' | 'orphan-capability'> = [];
+    const isActiveSub = sub && (sub.status === 'active' || sub.status === 'trialing');
+    const expectedCapability = isActiveSub ? this.expectedCapabilityForPaidTier(sub.tier) : null;
+
+    if (
+      expectedCapability &&
+      !capabilities.some((cap) => cap.capability === expectedCapability)
+    ) {
+      issues.push('tier-without-capability');
+    }
+
+    if (capabilities.length > 1) {
+      const hasMatchingActiveSubCapability =
+        Boolean(expectedCapability) &&
+        capabilities.some((cap) => cap.capability === expectedCapability);
+      if (!hasMatchingActiveSubCapability) {
+        issues.push('orphan-capability');
+      }
+    }
+
+    return { consistent: issues.length === 0, issues };
+  }
 
   async createCheckoutSession(
     userId: string,
@@ -130,16 +185,79 @@ export class SubscriptionService {
     };
   }
 
-  async getMySubscription(userId: string): Promise<SubscriptionResponse | null> {
+  async getMySubscription(userId: string): Promise<SubscriptionResponse> {
     const sub = await this.repo.findByUserId(userId);
-    if (!sub) return null;
+    let capabilities = await capabilityRepo.listActive(userId);
+    const reconciliation = this.computeReconciliation(sub, capabilities);
+    let responseReconciliation = reconciliation;
+
+    if (
+      reconciliation.issues.includes('tier-without-capability') &&
+      sub &&
+      (sub.status === 'active' || sub.status === 'trialing')
+    ) {
+      const expectedCapability = this.expectedCapabilityForPaidTier(sub.tier);
+      if (expectedCapability) {
+        await capabilityRepo.upsert({
+          userId,
+          capability: expectedCapability,
+          source: 'subscription',
+          subscriptionId: sub.id,
+          expiresAt: sub.currentPeriodEnd ? new Date(sub.currentPeriodEnd) : null,
+          metadata: { self_healed: true },
+        });
+        capabilities = await capabilityRepo.listActive(userId);
+      }
+    }
+
+    if (!sub) {
+      return {
+        id: '',
+        userId,
+        tier: 'free',
+        status: 'none',
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+        quantity: 1,
+        createdAt: new Date().toISOString(),
+        capabilities,
+        reconciliation: this.computeReconciliation(null, capabilities),
+      };
+    }
+
     const response = this.toResponse(sub);
-    response.capabilities = await capabilityRepo.listActive(userId);
+    response.capabilities = capabilities;
+    response.reconciliation = responseReconciliation;
     return response;
   }
 
   async listActiveCapabilities(userId: string) {
     return capabilityRepo.listActive(userId);
+  }
+
+  async createPortalSession(userId: string, returnUrl?: string): Promise<PortalSessionResponse> {
+    const stripe = getStripe();
+    const sub = await this.repo.findActiveByUserId(userId);
+
+    if (!sub) {
+      throw new AppError('No active subscription found', 400, 'NO_ACTIVE_SUBSCRIPTION');
+    }
+
+    if (!sub.stripeCustomerId) {
+      throw new AppError('No Stripe customer ID found', 400, 'NO_STRIPE_CUSTOMER');
+    }
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: sub.stripeCustomerId,
+      return_url: this.resolvePortalReturnUrl(returnUrl),
+    });
+
+    return {
+      portalUrl: session.url,
+    };
   }
 
   async cancelSubscription(userId: string, immediate: boolean = false): Promise<SubscriptionResponse> {
@@ -410,6 +528,11 @@ export class SubscriptionService {
       cancelAtPeriodEnd: Boolean(sub.cancelAtPeriodEnd),
       quantity: sub.quantity ?? 1,
       createdAt: new Date(sub.createdAt).toISOString(),
+      capabilities: [],
+      reconciliation: {
+        consistent: true,
+        issues: [],
+      },
     };
   }
 }

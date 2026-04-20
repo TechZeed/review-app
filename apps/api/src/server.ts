@@ -25,10 +25,6 @@ async function main() {
   initializeFirebase();
   await initDb();
 
-  // Migrations will be run here once the db/migrate module is implemented
-  // const { migrateUp } = await import("./db/migrate.js");
-  // await migrateUp();
-
   const port = env.PORT;
   const server = app.listen(port, "0.0.0.0", () => {
     logger.info(`server started on port ${port}`, { port });

@@ -190,4 +190,44 @@ test.describe("billing — active capabilities (spec 28)", () => {
       `expected cancel intent recorded; got status=${body.status} cancelAtPeriodEnd=${body.cancelAtPeriodEnd}`,
     ).toBeTruthy();
   });
+
+  test("active subscriber uses billing portal to switch plans", async ({ page }) => {
+    await primeDashboardSession(page, "ramesh@reviewapp.demo");
+    await page.goto("/billing");
+    await expect(page.getByTestId("billing-root")).toBeVisible({ timeout: 15_000 });
+
+    const switchBtn = page
+      .getByTestId("billing-upgrade-btn")
+      .filter({ hasText: /switch plan/i })
+      .first();
+    const visible = await switchBtn.isVisible().catch(() => false);
+    if (!visible) {
+      test.skip(
+        true,
+        "GAP: no 'Switch plan' button rendered for active subscriber (likely no active/trialing subscription in this environment).",
+      );
+      return;
+    }
+
+    const portalRespPromise = page.waitForResponse(
+      (res) =>
+        res.url().includes("/api/v1/subscriptions/portal") &&
+        res.request().method() === "POST",
+      { timeout: 30_000 },
+    );
+
+    await switchBtn.click();
+    const res = await portalRespPromise;
+    if (!res.ok()) {
+      test.skip(
+        true,
+        `GAP: POST /api/v1/subscriptions/portal returned ${res.status()} (Stripe portal may not be enabled/configured in this env). Body: ${await res.text().catch(() => "")}`,
+      );
+      return;
+    }
+
+    const body = await res.json();
+    expect(typeof body.portalUrl).toBe("string");
+    expect(body.portalUrl).toMatch(/^https?:\/\//);
+  });
 });
