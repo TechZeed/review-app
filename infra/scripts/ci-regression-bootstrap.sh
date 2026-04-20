@@ -32,3 +32,8 @@ done
 
 echo "✓ secrets synced to ${ENV_NAME}"
 echo "GCP_SA_KEY is already a repo-wide secret — not copied."
+
+# Ensure labels used by the auto-issue step exist (idempotent)
+gh label create regression --color B60205 --description "Regression suite" --force >/dev/null 2>&1 || true
+gh label create automated-failure --color D93F0B --description "Filed by CI" --force >/dev/null 2>&1 || true
+echo "✓ labels 'regression' and 'automated-failure' ensured"
