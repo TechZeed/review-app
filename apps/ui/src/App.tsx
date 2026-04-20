@@ -11,18 +11,15 @@ import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 import { signOutUser } from './lib/auth-service';
 import { getDashboardHomePath, getUiHostMode } from './lib/domain';
+import type { components } from './api-types';
 
-export interface AuthUser {
+export type AuthUser = components['schemas']['AuthUser'] & {
   token: string;
-  id: string;
-  email: string;
-  role: string;
-  name: string;
   profile_slug: string;
   // Spec 28 — capability-based access. Paid features are gated by this list,
   // not by `role`. Empty array for users with no active paid capability.
   capabilities: string[];
-}
+};
 
 interface AuthContextType {
   user: AuthUser | null;
