@@ -229,16 +229,15 @@ Every failing assertion on first run → gap spec + issue, same protocol as spec
 
 ## 10. CI deferral
 
-Not in CI in v1. CI needs either:
+Not in CI in v1. The current dev loop is **local runs against an emulator or a connected physical device** — see §7 (`task dev:test:regression:mobile` and `task dev:test:regression:mobile:emulator`).
 
-- A **GitHub-hosted Android emulator runner** (costs real minutes; the sessions timeout on Actions at ~6 hours, should be plenty) — but conflicts with our free-tier posture (spec 17 §manual-only).
-- A **self-hosted device farm** (expensive to maintain).
+When we flip CI on, the path will be **GitHub Actions Android emulator** (`reactivecircus/android-emulator-runner@v2`). Our flows are not touch-heavy (tap / type / assertVisible only — no gestures, no pinch-zoom, no complex drag), so emulator reliability is acceptable for this suite. No third-party vendor (Maestro Cloud, Firebase Test Lab) is needed.
 
-Neither is worth it while we're in Internal Testing. Revisit when we promote to Closed/Open Testing and daily release cadence warrants it.
+The CI workflow will live at `.github/workflows/regression-mobile.yml` when we author it — deferred until we've validated locally that the flows are stable against an emulator. User stance: "use maestro locally with emulator and then we will see".
 
 ## 11. Invariants
 
-- **Physical device only.** No emulator guarantees. If a flow works on an emulator but fails on a Samsung/Pixel, emulator result is the false positive. Run against a real device every time.
+- **Emulator or physical device — both acceptable.** Our flows are not touch-heavy (tap / type / assertVisible only), so Android emulator reliability is good enough. Pre-pivot wording required physical only; revised 2026-04-19 after the user confirmed touch-light flows.
 - **Reviewee scope only.** If an agent (or anyone) proposes `06-admin-approve.yaml`, reject it. Spec 21 / d18 says admin/employer/recruiter are web, not mobile.
 - **Against dev API only.** Never point Maestro flows at production. If a flow needs a prod sanity-check, that's a different spec with different credential guards.
 - **Dev APK only.** Never run these flows against a production-signed AAB — behavior differs (different Firebase project could exist, different OAuth client IDs).
@@ -251,3 +250,14 @@ Neither is worth it while we're in Internal Testing. Revisit when we promote to 
 - **CI integration** when promotion cadence warrants it.
 - **Screenshot diffing** (Maestro supports `--screenshot` + baselines) — visual regression for the reviewee daily loop.
 - **Deep-link tests** — `reviewapp://r/ramesh-kumar` opens the in-app public-profile view. Needs expo-linking hookup tests; requires the deep-link UI target screen to exist on mobile first (probably doesn't today — file as gap on first authoring pass).
+
+## 13. Local emulator setup
+
+The local-emulator path (`task dev:test:regression:mobile:emulator`) assumes an Android SDK install with at least one AVD. Quick reference:
+
+- `$ANDROID_HOME` must be set (on macOS the SDK typically lives at `~/Library/Android/sdk`). Confirm with `echo $ANDROID_HOME` and `ls $ANDROID_HOME/emulator/emulator`.
+- `$ANDROID_HOME/emulator/emulator -list-avds` lists AVDs on the machine. The task defaults to `pixel_7_api_34`; pass a different name with `-- <avd_name>` to override.
+- If no AVD exists: open Android Studio → **Tools → Device Manager → Create Device** → Pixel 7 + system image `API 34 (Android 14) Google Play`. Name it `pixel_7_api_34` to match the task default.
+- Maestro binary: `curl -Ls "https://get.maestro.mobile.dev" | bash` (installs to `~/.maestro/bin/maestro`, which the tasks reference directly so `$PATH` setup is not required).
+
+For physical device runs, skip the emulator boot — connect over USB with debugging enabled, then run `task dev:test:regression:mobile:install` + `task dev:test:regression:mobile`.
