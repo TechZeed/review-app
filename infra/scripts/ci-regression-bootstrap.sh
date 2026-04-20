@@ -11,7 +11,7 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 # Create environment if absent (idempotent — PUT succeeds even if it exists)
-gh api -X PUT "/repos/${REPO}/environments/${ENV_NAME}" -f wait_timer=0 >/dev/null
+gh api -X PUT "/repos/${REPO}/environments/${ENV_NAME}" -F wait_timer=0 >/dev/null
 echo "✓ environment '${ENV_NAME}' ready under ${REPO}"
 
 # Source env file so variables are available
