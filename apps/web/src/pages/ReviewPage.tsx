@@ -93,7 +93,7 @@ export default function ReviewPage() {
           photoUrl: data.photoUrl || data.photo_url || null,
           orgName: data.orgName || data.org_name || data.currentOrg || null,
           role: data.role || data.currentRole || null,
-          totalReviews: data.totalReviews ?? data.total_reviews ?? 0,
+          totalReviews: data.totalReviews ?? data.total_reviews ?? data.reviewCount ?? 0,
           slug: data.slug || slug,
         });
       } catch (e: any) {

@@ -105,6 +105,14 @@ test.describe("billing — active capabilities (spec 28)", () => {
         .filter((c: string) => !!c);
     }
 
+    let profile_slug = "";
+    if (user.role !== "ADMIN") {
+      const profRes = await suiteApi.get("/api/v1/profiles/me", {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      if (profRes.ok()) profile_slug = (await profRes.json())?.slug ?? "";
+    }
+
     await page.goto("/login");
     await page.evaluate(
       (u) => localStorage.setItem("auth_user", JSON.stringify(u)),
@@ -114,7 +122,7 @@ test.describe("billing — active capabilities (spec 28)", () => {
         email: user.email,
         role: user.role,
         name: (user as { name?: string }).name ?? "",
-        profile_slug: "",
+        profile_slug,
         capabilities: caps,
       },
     );

@@ -56,13 +56,15 @@ export default function NavBar() {
               <span className="text-sm text-gray-600 hidden sm:block truncate max-w-[120px]">
                 {user.name}
               </span>
-              <Link
-                to={getPublicProfileHref(user.profile_slug)}
-                className="text-sm text-blue-600 hover:text-blue-800 shrink-0"
-              >
-                <span className="hidden sm:inline">Public Profile</span>
-                <span className="sm:hidden">Profile</span>
-              </Link>
+              {user.profile_slug && user.role !== 'ADMIN' && (
+                <Link
+                  to={getPublicProfileHref(user.profile_slug)}
+                  className="text-sm text-blue-600 hover:text-blue-800 shrink-0"
+                >
+                  <span className="hidden sm:inline">Public Profile</span>
+                  <span className="sm:hidden">Profile</span>
+                </Link>
+              )}
               <button
                 onClick={logout}
                 data-testid="navbar-logout"

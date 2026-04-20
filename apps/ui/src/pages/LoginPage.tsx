@@ -19,6 +19,16 @@ async function fetchCapabilities(token: string): Promise<string[]> {
   }
 }
 
+async function fetchProfileSlug(token: string): Promise<string> {
+  try {
+    const res = await apiFetch<{ slug?: string }>('/api/v1/profiles/me', { token });
+    return res.slug ?? '';
+  } catch {
+    // Admins and users without a profile row return 404 here; that's expected.
+    return '';
+  }
+}
+
 const EMAIL_LOGIN_ENABLED = import.meta.env.VITE_FEATURE_EMAIL_LOGIN === 'true';
 
 export default function LoginPage() {
@@ -38,14 +48,17 @@ export default function LoginPage() {
   }
 
   const completeSignIn = async (res: ExchangeTokenResponse) => {
-    const capabilities = await fetchCapabilities(res.accessToken);
+    const [capabilities, profile_slug] = await Promise.all([
+      fetchCapabilities(res.accessToken),
+      res.user.role === 'ADMIN' ? Promise.resolve('') : fetchProfileSlug(res.accessToken),
+    ]);
     setUser({
       token: res.accessToken,
       id: res.user.id,
       email: res.user.email,
       role: res.user.role,
       name: res.user.name,
-      profile_slug: '',
+      profile_slug,
       capabilities,
     });
     navigate(homeForRole(res.user.role), { replace: true });

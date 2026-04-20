@@ -176,13 +176,20 @@ test.describe("capability-based access (spec 28)", () => {
         .map((c: { capability: string }) => c.capability)
         .filter((c: string) => !!c);
     }
+    let profile_slug = "";
+    if (user.role !== "ADMIN") {
+      const profRes = await api.get("/api/v1/profiles/me", {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      if (profRes.ok()) profile_slug = (await profRes.json())?.slug ?? "";
+    }
     const authUser = {
       token: accessToken,
       id: user.id,
       email: user.email,
       role: user.role,
       name: (user as { name?: string }).name ?? "",
-      profile_slug: "",
+      profile_slug,
       capabilities: caps,
     };
 
@@ -192,28 +199,6 @@ test.describe("capability-based access (spec 28)", () => {
     }, authUser);
     await page.goto("/recruiter");
 
-    // Two possible outcomes:
-    //   a) UI deployed with spec 28 changes → ramesh (INDIVIDUAL + recruiter
-    //      capability) sees recruiter-root. PASS.
-    //   b) UI still role-gated → RecruiterPage bounces INDIVIDUAL to
-    //      /dashboard or /billing. SKIP — the backend half is already
-    //      covered by tests 1 and 2; we wait on the frontend deploy.
-    const recruiterVisible = await page
-      .getByTestId("recruiter-root")
-      .waitFor({ state: "visible", timeout: 20_000 })
-      .then(() => true)
-      .catch(() => false);
-
-    if (!recruiterVisible) {
-      const currentUrl = page.url();
-      test.skip(
-        true,
-        `UI /recruiter did not honour capability (landed on ${currentUrl}). ` +
-          `Waiting on spec 28 frontend agent to ship the RecruiterPage capability guard.`,
-      );
-      return;
-    }
-
-    await expect(page.getByTestId("recruiter-root")).toBeVisible();
+    await expect(page.getByTestId("recruiter-root")).toBeVisible({ timeout: 20_000 });
   });
 });

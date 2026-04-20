@@ -62,13 +62,27 @@ export async function primeDashboardSession(
     } catch {
       // Non-fatal — leave capabilities as [].
     }
+    let profile_slug = "";
+    if (user.role !== "ADMIN") {
+      try {
+        const profRes = await api.get("/api/v1/profiles/me", {
+          headers: { authorization: `Bearer ${accessToken}` },
+        });
+        if (profRes.ok()) {
+          const prof = await profRes.json();
+          profile_slug = prof?.slug ?? "";
+        }
+      } catch {
+        // Non-fatal — individuals may not have a profile in edge cases.
+      }
+    }
     const authUser = {
       token: accessToken,
       id: user.id,
       email: user.email,
       role: user.role,
       name: (user as any).name ?? "",
-      profile_slug: "",
+      profile_slug,
       capabilities,
     };
     // App.tsx reads auth_user on mount (useState initializer). We need the
