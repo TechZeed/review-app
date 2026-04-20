@@ -1,17 +1,14 @@
 import type { APIRequestContext } from "@playwright/test";
+import type { components } from "../api-types.js";
 
 // Thin wrappers around admin endpoints used by regression (spec 28).
 // Caller passes an APIRequestContext already configured with baseURL +
 // an admin access token in the authorization header. Keeps specs free
 // of repetitive URL/body plumbing.
 
-export type AdminUser = {
-  id: string;
-  email: string;
-  role: string;
-  status?: string;
-  [key: string]: unknown;
-};
+export type AdminUser = components["schemas"]["AuthUser"];
+export type Capability = components["schemas"]["GrantCapability"]["capability"];
+export type CapabilityListResponse = { capabilities: components["schemas"]["Capability"][] };
 
 export async function adminListUsers(
   api: APIRequestContext,
@@ -30,10 +27,10 @@ export async function adminGrantCapability(
   api: APIRequestContext,
   adminToken: string,
   userId: string,
-  capability: "pro" | "employer" | "recruiter",
+  capability: Capability,
   reason = "regression",
   expiresAt?: string,
-): Promise<unknown> {
+): Promise<CapabilityListResponse> {
   const res = await api.post(`/api/v1/auth/admin/users/${userId}/capabilities`, {
     headers: { authorization: `Bearer ${adminToken}` },
     data: expiresAt ? { capability, reason, expiresAt } : { capability, reason },
@@ -43,14 +40,14 @@ export async function adminGrantCapability(
       `adminGrantCapability(${capability}) failed: ${res.status()} ${await res.text()}`,
     );
   }
-  return res.json();
+  return res.json() as Promise<CapabilityListResponse>;
 }
 
 export async function adminRevokeCapability(
   api: APIRequestContext,
   adminToken: string,
   userId: string,
-  capability: "pro" | "employer" | "recruiter",
+  capability: Capability,
 ): Promise<void> {
   const res = await api.delete(
     `/api/v1/auth/admin/users/${userId}/capabilities/${capability}`,

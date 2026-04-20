@@ -1,6 +1,7 @@
 import type { APIRequestContext } from "@playwright/test";
+import type { components } from "../api-types.js";
 
-export type LoginResult = { accessToken: string; user: { id: string; email: string; role: string } };
+export type LoginResult = components["schemas"]["ExchangeTokenResponse"];
 
 /** Thrown when login hits the auth rate limiter (429). Specs can catch and test.skip(). */
 export class LoginRateLimitedError extends Error {
