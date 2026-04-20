@@ -125,6 +125,10 @@ interface CheckoutResponse {
   expiresAt?: number;
 }
 
+interface PortalResponse {
+  portalUrl: string;
+}
+
 async function api<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -196,6 +200,29 @@ export default function BillingPage() {
     },
   });
 
+  const portalMutation = useMutation({
+    mutationFn: async () => {
+      setErrorMsg(null);
+      const returnUrl = `${window.location.origin}/billing`;
+      return api<PortalResponse>('/api/v1/subscriptions/portal', user.token, {
+        method: 'POST',
+        body: JSON.stringify({ returnUrl }),
+      });
+    },
+    onSuccess: (data) => {
+      if (data.portalUrl) {
+        window.location.assign(data.portalUrl);
+      } else {
+        setErrorMsg('Portal session created but no redirect URL returned.');
+        setPendingTier(null);
+      }
+    },
+    onError: (err: unknown) => {
+      setErrorMsg(err instanceof Error ? err.message : 'Portal redirect failed.');
+      setPendingTier(null);
+    },
+  });
+
   const cancelMutation = useMutation({
     mutationFn: async () => {
       setErrorMsg(null);
@@ -232,7 +259,6 @@ export default function BillingPage() {
     if (currentPlan?.tier === plan.tier && currentPlan?.cycle === plan.cycle) {
       return { label: 'Current plan', variant: 'secondary' };
     }
-    if (currentPlan && plan.rank > currentPlan.rank) return { label: 'Upgrade', variant: 'primary' };
     return { label: 'Switch plan', variant: 'secondary' };
   }
 
@@ -357,7 +383,7 @@ export default function BillingPage() {
                 {groupPlans.map((plan) => {
                   const cta = ctaFor(plan);
                   const key = plan.tier + ':' + plan.cycle;
-                  const isPending = pendingTier === key && checkoutMutation.isPending;
+                  const isPending = pendingTier === key && (checkoutMutation.isPending || portalMutation.isPending);
                   const isCurrent = cta.label === 'Current plan';
                   return (
                     <div
@@ -374,7 +400,14 @@ export default function BillingPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => checkoutMutation.mutate(plan)}
+                        onClick={() => {
+                          setPendingTier(key);
+                          if (hasActive) {
+                            portalMutation.mutate();
+                            return;
+                          }
+                          checkoutMutation.mutate(plan);
+                        }}
                         disabled={isPending || isCurrent}
                         className={
                           'mt-4 px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 ' +

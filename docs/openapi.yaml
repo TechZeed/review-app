@@ -1,6 +1,6 @@
 # ReviewApp OpenAPI — auto-generated, do not hand-edit.
 # Regenerate: task dev:openapi:regen
-# Generated: 2026-04-20T08:40:59.236Z
+# Generated: 2026-04-20T12:02:38.516Z
 
 openapi: 3.1.0
 info:
@@ -521,6 +521,32 @@ components:
           format: uuid
       required:
         - mediaId
+    ReviewMediaParam:
+      type: object
+      properties:
+        reviewId:
+          type: string
+          format: uuid
+      required:
+        - reviewId
+    ReviewMediaText:
+      type: object
+      properties:
+        reviewToken:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+            - text
+        content:
+          type: string
+          minLength: 1
+          maxLength: 280
+      required:
+        - reviewToken
+        - type
+        - content
     UploadMedia:
       type: object
       properties:
@@ -985,6 +1011,12 @@ components:
         - tier
         - successUrl
         - cancelUrl
+    CreatePortal:
+      type: object
+      properties:
+        returnUrl:
+          type: string
+          format: uri
     Initiate:
       type: object
       properties:
@@ -2892,6 +2924,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/v1/reviews/{reviewId}/media:
+    post:
+      tags:
+        - review
+      summary: POST /api/v1/reviews/{reviewId}/media
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: reviewId
+          in: path
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewMediaText"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /api/v1/reviews/my-submissions:
     get:
       tags:
@@ -3037,6 +3108,39 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/CreateCheckout"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/subscriptions/portal:
+    post:
+      tags:
+        - subscription
+      summary: POST /api/v1/subscriptions/portal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePortal"
       responses:
         "200":
           description: OK

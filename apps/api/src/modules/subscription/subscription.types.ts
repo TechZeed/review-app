@@ -51,6 +51,10 @@ export interface CheckoutResponse {
   expiresAt: number;
 }
 
+export interface PortalSessionResponse {
+  portalUrl: string;
+}
+
 export interface SubscriptionRecord {
   id: string;
   userId: string;

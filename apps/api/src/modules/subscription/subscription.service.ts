@@ -8,6 +8,7 @@ import { logger } from '../../config/logger.js';
 import type {
   CreateCheckoutInput,
   CheckoutResponse,
+  PortalSessionResponse,
   SubscriptionResponse,
   SubscriptionRecord,
 } from './subscription.types.js';
@@ -140,6 +141,28 @@ export class SubscriptionService {
 
   async listActiveCapabilities(userId: string) {
     return capabilityRepo.listActive(userId);
+  }
+
+  async createPortalSession(userId: string, returnUrl?: string): Promise<PortalSessionResponse> {
+    const stripe = getStripe();
+    const sub = await this.repo.findActiveByUserId(userId);
+
+    if (!sub) {
+      throw new AppError('No active subscription found', 400, 'NO_ACTIVE_SUBSCRIPTION');
+    }
+
+    if (!sub.stripeCustomerId) {
+      throw new AppError('No Stripe customer ID found', 400, 'NO_STRIPE_CUSTOMER');
+    }
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: sub.stripeCustomerId,
+      return_url: returnUrl ?? `${env.FRONTEND_URL}/billing`,
+    });
+
+    return {
+      portalUrl: session.url,
+    };
   }
 
   async cancelSubscription(userId: string, immediate: boolean = false): Promise<SubscriptionResponse> {
