@@ -77,7 +77,6 @@ describe("signInWithEmailPassword", () => {
 
     expect(result).toEqual({ token: payload.accessToken, user: payload.user });
     expect(setToken).toHaveBeenCalledTimes(1);
-    expect(setToken).toHaveBeenCalledWith(expect.any(String));
-    expect((setToken as jest.Mock).mock.calls[0][0]).not.toHaveLength(0);
+    expect(setToken).toHaveBeenCalledWith(payload.accessToken);
   });
 });
