@@ -5,6 +5,13 @@ import { openDb, closeDb, type DbCtx } from "../lib/dbProxy.js";
 const API_URL = process.env.REGRESSION_API_URL ?? "https://review-api.teczeed.com";
 const TARGET_EMAIL = "ramesh@reviewapp.demo";
 
+type LoginUser = {
+  id: string;
+  email: string;
+  role: string;
+  name?: string;
+};
+
 let api: APIRequestContext;
 let dbCtx: DbCtx;
 let targetUserId: string;
@@ -13,8 +20,13 @@ async function withDbProxy<T>(fn: (client: Client) => Promise<T>): Promise<T> {
   return fn(dbCtx.client);
 }
 
-async function seedBillingState(opts: { subId: string; withCapability: boolean; tier?: "free" | "recruiter" }) {
-  const tier = opts.tier ?? "recruiter";
+async function seedBillingState(opts: {
+  subId: string;
+  withCapability: boolean;
+  subscriptionTier?: "recruiter";
+  noSubscription?: boolean;
+}) {
+  const tier = opts.subscriptionTier ?? "recruiter";
   const now = new Date();
   const periodEnd = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
 
@@ -37,21 +49,23 @@ async function seedBillingState(opts: { subId: string; withCapability: boolean; 
     ),
   );
 
-  await withDbProxy((client) =>
-    client.query(
-      `INSERT INTO subscriptions
-        (id, user_id, tier, stripe_customer_id, stripe_subscription_id, status, current_period_start, current_period_end, created_at, updated_at)
-       VALUES
-        ($1, $2, $3, NULL, NULL, 'active', $4, $5, $4, $4)
-       ON CONFLICT (id) DO UPDATE
-       SET tier = EXCLUDED.tier,
-           status = 'active',
-           current_period_start = EXCLUDED.current_period_start,
-           current_period_end = EXCLUDED.current_period_end,
-           updated_at = EXCLUDED.updated_at`,
-      [opts.subId, targetUserId, tier, now, periodEnd],
-    ),
-  );
+  if (!opts.noSubscription) {
+    await withDbProxy((client) =>
+      client.query(
+        `INSERT INTO subscriptions
+          (id, user_id, tier, stripe_customer_id, stripe_subscription_id, status, current_period_start, current_period_end, created_at, updated_at)
+         VALUES
+          ($1, $2, $3, NULL, NULL, 'active', $4, $5, $4, $4)
+         ON CONFLICT (id) DO UPDATE
+         SET tier = EXCLUDED.tier,
+             status = 'active',
+             current_period_start = EXCLUDED.current_period_start,
+             current_period_end = EXCLUDED.current_period_end,
+             updated_at = EXCLUDED.updated_at`,
+        [opts.subId, targetUserId, tier, now, periodEnd],
+      ),
+    );
+  }
 
   if (opts.withCapability && tier === "recruiter") {
     await withDbProxy((client) =>
@@ -74,7 +88,10 @@ async function loginAndSeedBillingSession(page: Page) {
     data: { email: TARGET_EMAIL, password },
   });
   expect(loginRes.ok()).toBeTruthy();
-  const { accessToken, user } = await loginRes.json();
+  const { accessToken, user } = (await loginRes.json()) as {
+    accessToken: string;
+    user: LoginUser;
+  };
 
   const meRes = await api.get("/api/v1/subscriptions/me", {
     headers: { authorization: `Bearer ${accessToken}` },
@@ -106,7 +123,7 @@ async function loginAndSeedBillingSession(page: Page) {
       userId: user.id,
       email: user.email,
       role: user.role,
-      name: (user as { name?: string }).name ?? "",
+      name: user.name ?? "",
       caps: capabilities,
     },
   );
@@ -149,7 +166,7 @@ test.describe("billing pathways (spec 48)", () => {
     await seedBillingState({
       subId: "77777777-7777-4777-8777-777777777701",
       withCapability: true,
-      tier: "recruiter",
+      subscriptionTier: "recruiter",
     });
     await loginAndSeedBillingSession(page);
     await page.goto("/billing");
@@ -164,7 +181,7 @@ test.describe("billing pathways (spec 48)", () => {
 
   test("tier-without-capability shows reconciliation banner once then self-heals", async ({ page }) => {
     const subId = "77777777-7777-4777-8777-777777777702";
-    await seedBillingState({ subId, withCapability: false, tier: "recruiter" });
+    await seedBillingState({ subId, withCapability: false, subscriptionTier: "recruiter" });
     await loginAndSeedBillingSession(page);
 
     await page.goto("/billing");
@@ -194,7 +211,7 @@ test.describe("billing pathways (spec 48)", () => {
     await seedBillingState({
       subId: "77777777-7777-4777-8777-777777777703",
       withCapability: false,
-      tier: "free",
+      noSubscription: true,
     });
     await loginAndSeedBillingSession(page);
 

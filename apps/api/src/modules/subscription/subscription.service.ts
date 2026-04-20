@@ -184,7 +184,6 @@ export class SubscriptionService {
           metadata: { self_healed: true },
         });
         capabilities = await capabilityRepo.listActive(userId);
-        responseReconciliation = reconciliation;
       }
     }
 

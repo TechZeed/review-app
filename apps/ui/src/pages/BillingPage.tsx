@@ -224,7 +224,11 @@ export default function BillingPage() {
             const plans = PLANS.filter((plan) => plan.group === pathway.group);
             const pathwayTestId = `billing-pathway-${pathway.group}`;
             const expandTestId = `billing-pathway-${pathway.group}-expand`;
-            const canCancel = owned && hasActiveSub && !meQuery.data?.cancelAtPeriodEnd;
+            const canCancel =
+              owned &&
+              hasActiveSub &&
+              !meQuery.data?.cancelAtPeriodEnd &&
+              meQuery.data?.tier === GROUP_TO_CAPABILITY[pathway.group];
 
             return (
               <article
