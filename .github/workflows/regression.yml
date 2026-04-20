@@ -1,0 +1,118 @@
+name: regression
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type 'regression' to confirm"
+        required: true
+        type: string
+      project:
+        description: "Playwright project filter (optional — blank = all)"
+        required: false
+        default: ""
+
+concurrency:
+  group: regression
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation
+        run: |
+          if [ "${{ inputs.confirm }}" != "regression" ]; then
+            echo "Type 'regression' to confirm."
+            exit 1
+          fi
+
+  run:
+    needs: validate
+    environment: ci-regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/regression/package-lock.json
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install regression deps
+        working-directory: apps/regression
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Auth to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Install cloud-sql-proxy
+        run: |
+          curl -sSLo cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.11.0/cloud-sql-proxy.linux.amd64
+          chmod +x cloud-sql-proxy
+          sudo mv cloud-sql-proxy /usr/local/bin/
+
+      - name: Run regression
+        working-directory: apps/regression
+        env:
+          REGRESSION_API_URL:       ${{ secrets.REGRESSION_API_URL }}
+          REGRESSION_SCAN_URL:      ${{ secrets.REGRESSION_SCAN_URL }}
+          REGRESSION_DASHBOARD_URL: ${{ secrets.REGRESSION_DASHBOARD_URL }}
+          CLOUDSQL_CONNECTION_NAME: ${{ secrets.CLOUDSQL_CONNECTION_NAME }}
+          POSTGRES_DB:              ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER:            ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD:        ${{ secrets.POSTGRES_PASSWORD }}
+          DEFAULT_SEED_PASSWORD:    ${{ secrets.DEFAULT_SEED_PASSWORD }}
+        run: |
+          if [ -n "${{ inputs.project }}" ]; then
+            npx playwright test --project="${{ inputs.project }}"
+          else
+            npx playwright test
+          fi
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: apps/regression/playwright-report
+          retention-days: 7
+
+      - name: Auto-file issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BODY=$(cat <<EOF
+          The regression workflow failed on main.
+
+          - **Run**: ${RUN_URL}
+          - **Commit**: \`${{ github.sha }}\`
+          - **Project filter**: \`${{ inputs.project || 'all' }}\`
+
+          Playwright HTML report is attached to the run as the \`playwright-report-${{ github.run_id }}\` artifact.
+
+          @Copilot — please investigate, open a PR with the fix, or comment with a diagnosis if the failure is infra/transient.
+          EOF
+          )
+          if ! gh issue create \
+                 --repo ${{ github.repository }} \
+                 --title "regression failed — run ${{ github.run_id }}" \
+                 --body "$BODY" \
+                 --assignee "@Copilot" \
+                 --label regression,automated-failure 2>/dev/null; then
+            gh issue create \
+              --repo ${{ github.repository }} \
+              --title "regression failed — run ${{ github.run_id }}" \
+              --body "$BODY" \
+              --label regression,automated-failure || true
+          fi
