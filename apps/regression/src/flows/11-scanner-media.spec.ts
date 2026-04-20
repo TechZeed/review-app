@@ -8,16 +8,8 @@ import { openDb, closeDb, type DbCtx } from "../lib/dbProxy.js";
 // MediaPrompt offers Text / Voice / Video / Done. Voice + Video are stubbed
 // (disabled buttons in the component). Text fires a fetch to add media.
 //
-// Important contract gap discovered while writing this:
-//   - MediaPrompt.tsx posts to `/api/v1/reviews/:reviewId/media`
-//   - The API only exposes `POST /api/v1/media/upload` (apps/api/src/modules/
-//     media/media.routes.ts).
-//   - On top of that, MediaController is constructed with a null repository
-//     (`new MediaRepository(null as any)`) so even hitting the right path
-//     would not persist a `review_media` row in dev.
-// Both gaps are documented in docs/specs/33-scanner-media-persistence.md
-// (GH issue filed). Until that ships, the "DB row exists after text submit"
-// assertion is `test.skip`'d. The UI-level transitions still get coverage.
+// Text CTA now posts to `/api/v1/reviews/:reviewId/media`, and API persistence
+// should create a `review_media` row linked to the review.
 //
 // Cleanup: the parent review row is created by /reviews/submit — we DELETE
 // it (and any review_media that may have been linked) by id before exit.
@@ -135,19 +127,15 @@ test.describe("scanner media prompt (browser)", () => {
   });
 
   test("Add text review persists a review_media row", async ({ page, request }) => {
-    test.skip(
-      true,
-      "Blocked by spec 33 / issue #13 — MediaPrompt POSTs to /reviews/:id/media (404). API only exposes /media/upload, and MediaController repo is null.",
-    );
-
     await rateLimitProbeOrSkip(request);
     const profileId = await getProfileId();
     const startedAt = new Date();
+    const textValue = "Regression text review — auto-cleanup";
 
     await rateUntilMediaStep(page);
     await page.getByRole("button", { name: /add text review/i }).click();
     const textArea = page.getByRole("textbox");
-    await textArea.fill("Regression text review — auto-cleanup");
+    await textArea.fill(textValue);
     await page.getByRole("button", { name: /^add$/i }).click();
 
     await expect(page.getByRole("heading", { name: /thank you/i })).toBeVisible({
@@ -160,11 +148,15 @@ test.describe("scanner media prompt (browser)", () => {
     );
     expect(reviewRows.length).toBeGreaterThanOrEqual(1);
     const ids = reviewRows.map((r) => r.id);
-    const { rows: mediaRows } = await dbCtx.client.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM review_media WHERE review_id = ANY($1::uuid[])`,
-      [ids],
+    const { rows: mediaRows } = await dbCtx.client.query<{ id: string }>(
+      `SELECT id
+         FROM review_media
+        WHERE review_id = ANY($1::uuid[])
+          AND media_type = 'text'
+          AND content_text = $2`,
+      [ids, textValue],
     );
-    expect(Number(mediaRows[0].count)).toBeGreaterThanOrEqual(1);
+    expect(mediaRows.length).toBeGreaterThanOrEqual(1);
 
     await cleanupRecentReviews(profileId, startedAt);
   });

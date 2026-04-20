@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { ReviewController } from './review.controller.js';
+import { MediaController } from '../media/media.controller.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireRole } from '../../middleware/authorize.js';
 import { validateBody, validateParams, validateQuery } from '../../middleware/validate.js';
 import { reviewRateLimit } from '../../middleware/rateLimit.js';
+import { reviewMediaParamSchema, reviewMediaTextSchema } from '../media/media.validation.js';
 import {
   scanSchema,
   submitReviewSchema,
@@ -14,6 +16,7 @@ import {
 
 export const reviewRouter = Router();
 const controller = new ReviewController();
+const mediaController = new MediaController();
 
 // Public: Scan QR code to start review session
 reviewRouter.post(
@@ -30,6 +33,14 @@ reviewRouter.post(
   reviewRateLimit,
   validateBody(submitReviewSchema),
   controller.submit
+);
+
+// Public: add scanner media to a just-submitted review (text only for now)
+reviewRouter.post(
+  '/:reviewId/media',
+  validateParams(reviewMediaParamSchema),
+  validateBody(reviewMediaTextSchema),
+  mediaController.uploadForReview
 );
 
 // IMPORTANT: /me and /my-submissions routes must be registered BEFORE /profile/:profileId

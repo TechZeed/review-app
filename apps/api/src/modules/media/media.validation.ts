@@ -14,6 +14,16 @@ export const uploadTextSchema = z.object({
   textContent: z.string().min(1).max(280),
 });
 
+export const reviewMediaParamSchema = z.object({
+  reviewId: z.string().uuid(),
+});
+
+export const reviewMediaTextSchema = z.object({
+  reviewToken: z.string().uuid(),
+  type: z.literal('text'),
+  content: z.string().min(1).max(280),
+});
+
 export const mediaIdParamSchema = z.object({
   mediaId: z.string().uuid(),
 });

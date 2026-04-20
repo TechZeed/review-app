@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from "react";
 
 interface MediaPromptProps {
   reviewId: string;
+  reviewToken: string;
   onDone: () => void;
 }
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 
-export default function MediaPrompt({ reviewId, onDone }: MediaPromptProps) {
+export default function MediaPrompt({ reviewId, reviewToken, onDone }: MediaPromptProps) {
   const [mode, setMode] = useState<"prompt" | "text">("prompt");
   const [textContent, setTextContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -32,7 +33,11 @@ export default function MediaPrompt({ reviewId, onDone }: MediaPromptProps) {
       await fetch(`${API_URL}/api/v1/reviews/${reviewId}/media`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "text", content: textContent.trim() }),
+        body: JSON.stringify({
+          reviewToken,
+          type: "text",
+          content: textContent.trim(),
+        }),
       });
     } catch {
       // Silently continue to done
