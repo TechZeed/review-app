@@ -32,7 +32,6 @@ profileRouter.post(
 profileRouter.get(
   '/me',
   authenticate,
-  requireRole(['INDIVIDUAL']),
   controller.getOwn
 );
 
@@ -40,7 +39,6 @@ profileRouter.get(
 profileRouter.put(
   '/me',
   authenticate,
-  requireRole(['INDIVIDUAL']),
   validateBody(updateProfileSchema),
   auditLog('profile_updated', 'profile'),
   controller.update
@@ -50,7 +48,6 @@ profileRouter.put(
 profileRouter.patch(
   '/me/visibility',
   authenticate,
-  requireRole(['INDIVIDUAL']),
   validateBody(visibilitySchema),
   auditLog('visibility_changed', 'profile'),
   controller.updateVisibility
@@ -60,7 +57,6 @@ profileRouter.patch(
 profileRouter.get(
   '/me/qr',
   authenticate,
-  requireRole(['INDIVIDUAL']),
   validateQuery(qrQuerySchema),
   controller.getQrCode
 );
@@ -69,7 +65,6 @@ profileRouter.get(
 profileRouter.get(
   '/me/stats',
   authenticate,
-  requireRole(['INDIVIDUAL']),
   validateQuery(statsQuerySchema),
   controller.getStats
 );
