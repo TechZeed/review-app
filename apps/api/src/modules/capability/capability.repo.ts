@@ -128,6 +128,21 @@ export class CapabilityRepo {
     });
   }
 
+  async cleanupInstantExpirySubscriptionRows(userId: string): Promise<void> {
+    const sequelize = getSequelize();
+    await sequelize.query(
+      `DELETE FROM user_capabilities
+       WHERE user_id = :userId
+         AND source = 'subscription'
+         AND expires_at IS NOT NULL
+         AND expires_at < created_at + INTERVAL '5 minutes'`,
+      {
+        replacements: { userId },
+        type: QueryTypes.DELETE,
+      },
+    );
+  }
+
   async setExpiry(subscriptionId: string, expiresAt: Date): Promise<void> {
     const sequelize = getSequelize();
     await sequelize.query(

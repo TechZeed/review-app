@@ -5,6 +5,7 @@ const { mockCapabilityRepo } = vi.hoisted(() => ({
   mockCapabilityRepo: {
     listActive: vi.fn(),
     upsert: vi.fn(),
+    cleanupInstantExpirySubscriptionRows: vi.fn(),
   },
 }));
 
@@ -15,6 +16,7 @@ vi.mock('../../src/modules/capability/capability.repo.js', () => ({
 describe('SubscriptionService.getMySubscription reconciliation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCapabilityRepo.cleanupInstantExpirySubscriptionRows.mockResolvedValue(undefined);
   });
 
   it('returns consistent=true when active tier and capability already match', async () => {
@@ -49,6 +51,8 @@ describe('SubscriptionService.getMySubscription reconciliation', () => {
   });
 
   it('self-heals tier-without-capability by inserting missing subscription capability', async () => {
+    const now = Date.now();
+    const periodEnd = new Date(now + 30 * 24 * 60 * 60 * 1000);
     const repo = {
       findByUserId: vi.fn().mockResolvedValue({
         id: 'sub-2',
@@ -62,8 +66,8 @@ describe('SubscriptionService.getMySubscription reconciliation', () => {
         quantity: 1,
         cancelAtPeriodEnd: false,
         cancelledAt: null,
-        currentPeriodStart: new Date('2026-01-01T00:00:00.000Z'),
-        currentPeriodEnd: new Date('2026-02-15T00:00:00.000Z'),
+        currentPeriodStart: new Date(now),
+        currentPeriodEnd: periodEnd,
         createdAt: new Date('2026-01-01T00:00:00.000Z'),
         updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       }),
@@ -75,12 +79,13 @@ describe('SubscriptionService.getMySubscription reconciliation', () => {
     const service = new SubscriptionService(repo as any);
     const me = await service.getMySubscription('user-2');
 
+    expect(mockCapabilityRepo.cleanupInstantExpirySubscriptionRows).toHaveBeenCalledWith('user-2');
     expect(mockCapabilityRepo.upsert).toHaveBeenCalledWith({
       userId: 'user-2',
       capability: 'recruiter',
       source: 'subscription',
       subscriptionId: 'sub-2',
-      expiresAt: new Date('2026-02-15T00:00:00.000Z'),
+      expiresAt: periodEnd,
       metadata: { self_healed: true },
     });
     expect(me.reconciliation).toEqual({

@@ -102,17 +102,24 @@ describe('GET /api/v1/subscriptions/me reconciliation self-heal', () => {
     expect(me.body.capabilities.some((c: { capability: string }) => c.capability === 'recruiter')).toBe(true);
 
     const [rows] = await sequelize.query(
-      `SELECT capability, source, subscription_id
+      `SELECT capability, source, subscription_id, expires_at
        FROM user_capabilities
        WHERE user_id = :userId AND capability = 'recruiter'
        ORDER BY granted_at DESC`,
       { replacements: { userId: USER_ID } },
     );
 
-    const healedRows = rows as Array<{ capability: string; source: string; subscription_id: string | null }>;
+    const healedRows = rows as Array<{
+      capability: string;
+      source: string;
+      subscription_id: string | null;
+      expires_at: Date | string | null;
+    }>;
     expect(healedRows.length).toBeGreaterThan(0);
     expect(healedRows[0]?.source).toBe('subscription');
     expect(healedRows[0]?.subscription_id).toBe(SUB_ID);
+    expect(healedRows[0]?.expires_at).toBeTruthy();
+    expect(new Date(healedRows[0]!.expires_at as string).getTime()).toBeGreaterThan(Date.now());
 
     const meAfterHeal = await request(app)
       .get('/api/v1/subscriptions/me')
