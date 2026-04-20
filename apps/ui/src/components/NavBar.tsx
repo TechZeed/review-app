@@ -65,6 +65,7 @@ export default function NavBar() {
               </Link>
               <button
                 onClick={logout}
+                data-testid="navbar-logout"
                 className="text-sm text-gray-500 hover:text-gray-700 px-2 sm:px-3 py-1.5 rounded-md border border-gray-300 hover:bg-gray-50 transition-colors shrink-0"
               >
                 <span className="hidden sm:inline">Sign Out</span>
