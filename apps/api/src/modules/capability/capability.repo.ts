@@ -135,11 +135,14 @@ export class CapabilityRepo {
     await sequelize.query(
       `DELETE FROM user_capabilities
        WHERE user_id = :userId
-        AND source = 'subscription'
-        AND expires_at IS NOT NULL
-         AND expires_at < created_at + INTERVAL '${INSTANT_EXPIRY_THRESHOLD_MINUTES} minutes'`,
+         AND source = 'subscription'
+         AND expires_at IS NOT NULL
+         AND expires_at < created_at + (:thresholdMinutes * INTERVAL '1 minute')`,
       {
-        replacements: { userId },
+        replacements: {
+          userId,
+          thresholdMinutes: INSTANT_EXPIRY_THRESHOLD_MINUTES,
+        },
         type: QueryTypes.DELETE,
       },
     );
