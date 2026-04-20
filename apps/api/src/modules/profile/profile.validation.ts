@@ -10,7 +10,12 @@ export const createProfileSchema = z.object({
 });
 
 export const updateProfileSchema = z.object({
+  // spec 19 B2: `headline` is the canonical column in the DB (the role
+  // title, not the display name). Accept it directly as an alias for
+  // `name` so API clients can write to it without going through the
+  // users.display_name path.
   name: z.string().min(2).max(100).optional(),
+  headline: z.string().min(1).max(200).optional(),
   photo: z.string().url().optional(),
   industry: z.string().max(100).optional(),
   role: z.string().max(100).optional(),

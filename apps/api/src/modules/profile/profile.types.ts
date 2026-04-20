@@ -16,6 +16,7 @@ export interface CreateProfileInput {
 
 export interface UpdateProfileInput {
   name?: string;
+  headline?: string;
   photo?: string;
   industry?: string;
   role?: string;

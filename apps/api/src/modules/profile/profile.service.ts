@@ -58,7 +58,10 @@ export class ProfileService {
     }
 
     const updates: any = {};
+    // spec 19 B2: `headline` is canonical; `name` is accepted as an alias
+    // for historical callers. If both are supplied, `headline` wins.
     if (data.name !== undefined) updates.headline = data.name;
+    if (data.headline !== undefined) updates.headline = data.headline;
     if (data.industry !== undefined) updates.industry = data.industry;
     if (data.bio !== undefined) updates.bio = data.bio;
 
