@@ -4420,6 +4420,10 @@ export interface components {
             cancelAtPeriodEnd?: boolean;
             stripeSubscriptionId?: string | null;
             capabilities: components["schemas"]["Capability"][];
+            reconciliation: {
+                consistent: boolean;
+                issues: ("tier-without-capability" | "orphan-capability")[];
+            };
         };
         QualityBreakdown: {
             expertise: number;
@@ -4807,6 +4811,10 @@ export interface components {
             cancelUrl: string;
             locationCount?: number;
             seatCount?: number;
+        };
+        Reconciliation: {
+            consistent: boolean;
+            issues: ("tier-without-capability" | "orphan-capability")[];
         };
         Initiate: {
             slug: string;

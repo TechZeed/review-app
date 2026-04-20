@@ -93,6 +93,10 @@ const SubscriptionMe = registry.register(
     cancelAtPeriodEnd: z.boolean().optional(),
     stripeSubscriptionId: z.string().nullable().optional(),
     capabilities: z.array(Capability),
+    reconciliation: z.object({
+      consistent: z.boolean(),
+      issues: z.array(z.enum(["tier-without-capability", "orphan-capability"])),
+    }),
   }),
 );
 

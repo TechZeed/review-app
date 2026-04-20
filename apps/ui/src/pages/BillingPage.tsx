@@ -1,21 +1,16 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../App';
 import NavBar from '../components/NavBar';
 import type { components } from '../api-types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://review-api.teczeed.com';
 
-// ── Plan catalogue ────────────────────────────────────────────────────────
-// No /api/v1/subscriptions/plans endpoint exists (see docs/api-contract.md
-// — subscription module). The valid `tier` values are encoded in the
-// checkout zod schema; we mirror them here with display metadata. Keep in
-// sync with spec 11 §1.
 type TierGroup = 'individual' | 'employer' | 'recruiter';
 type BillingCycle = 'monthly' | 'annual';
 
-interface Plan {
+type Plan = {
   tier:
     | 'pro_individual'
     | 'employer_small'
@@ -24,106 +19,48 @@ interface Plan {
     | 'recruiter_basic'
     | 'recruiter_premium';
   group: TierGroup;
-  // The DB-side tier label that the API returns on /me (`pro`, `employer`,
-  // `recruiter`). Used to determine current-plan / upgrade vs downgrade.
-  dbTier: 'pro' | 'employer' | 'recruiter';
-  name: string;
-  price: string;
   cycle: BillingCycle;
-  blurb: string;
-  // Order within group — higher rank = more expensive plan.
-  rank: number;
-  // Whether the API requires a quantity hint (locationCount / seatCount).
+  label: string;
+  price: string;
   qtyKind?: 'locationCount' | 'seatCount';
-}
+};
 
 const PLANS: Plan[] = [
-  {
-    tier: 'pro_individual',
-    group: 'individual',
-    dbTier: 'pro',
-    name: 'Pro Individual — Monthly',
-    price: '$10/month',
-    cycle: 'monthly',
-    blurb: 'Analytics, custom QR designs, video reel, recruiter visibility.',
-    rank: 1,
-  },
-  {
-    tier: 'pro_individual',
-    group: 'individual',
-    dbTier: 'pro',
-    name: 'Pro Individual — Annual',
-    price: '$5/month (billed yearly)',
-    cycle: 'annual',
-    blurb: 'Same as monthly, 50% off when paid yearly.',
-    rank: 2,
-  },
-  {
-    tier: 'employer_small',
-    group: 'employer',
-    dbTier: 'employer',
-    name: 'Employer — Small',
-    price: '$50/month per location',
-    cycle: 'monthly',
-    blurb: 'Up to 25 employees per location. Team dashboard + leaderboard.',
-    rank: 1,
-    qtyKind: 'locationCount',
-  },
-  {
-    tier: 'employer_medium',
-    group: 'employer',
-    dbTier: 'employer',
-    name: 'Employer — Medium',
-    price: '$100/month per location',
-    cycle: 'monthly',
-    blurb: '25–100 employees. Adds retention risk alerts.',
-    rank: 2,
-    qtyKind: 'locationCount',
-  },
-  {
-    tier: 'employer_large',
-    group: 'employer',
-    dbTier: 'employer',
-    name: 'Employer — Large',
-    price: '$200/month per location',
-    cycle: 'monthly',
-    blurb: '100+ employees. All employer features.',
-    rank: 3,
-    qtyKind: 'locationCount',
-  },
-  {
-    tier: 'recruiter_basic',
-    group: 'recruiter',
-    dbTier: 'recruiter',
-    name: 'Recruiter Basic',
-    price: '$500/month per seat',
-    cycle: 'monthly',
-    blurb: 'Search + view reviewee profiles.',
-    rank: 1,
-    qtyKind: 'seatCount',
-  },
-  {
-    tier: 'recruiter_premium',
-    group: 'recruiter',
-    dbTier: 'recruiter',
-    name: 'Recruiter Premium',
-    price: '$1,000/month per seat',
-    cycle: 'monthly',
-    blurb: 'Search + view + contact + verifiable references.',
-    rank: 2,
-    qtyKind: 'seatCount',
-  },
+  { tier: 'pro_individual', group: 'individual', cycle: 'monthly', label: 'Monthly', price: '$10/month' },
+  { tier: 'pro_individual', group: 'individual', cycle: 'annual', label: 'Annual', price: '$5/month (billed yearly)' },
+  { tier: 'employer_small', group: 'employer', cycle: 'monthly', label: 'Small', price: '$50/month per location', qtyKind: 'locationCount' },
+  { tier: 'employer_medium', group: 'employer', cycle: 'monthly', label: 'Medium', price: '$100/month per location', qtyKind: 'locationCount' },
+  { tier: 'employer_large', group: 'employer', cycle: 'monthly', label: 'Large', price: '$200/month per location', qtyKind: 'locationCount' },
+  { tier: 'recruiter_basic', group: 'recruiter', cycle: 'monthly', label: 'Basic', price: '$500/month per seat', qtyKind: 'seatCount' },
+  { tier: 'recruiter_premium', group: 'recruiter', cycle: 'monthly', label: 'Premium', price: '$1,000/month per seat', qtyKind: 'seatCount' },
 ];
 
-// ── API types ─────────────────────────────────────────────────────────────
 type Capability = components['schemas']['Capability'];
 type SubscriptionMe = components['schemas']['SubscriptionMe'];
 
-interface CheckoutResponse {
+type CheckoutResponse = {
   checkoutSessionId?: string;
   checkoutUrl: string;
   expiresAt?: number;
-}
+};
+
+const CAPABILITY_TO_GROUP: Record<string, TierGroup | undefined> = {
+  pro: 'individual',
+  employer: 'employer',
+  recruiter: 'recruiter',
+};
+
+const GROUP_TO_CAPABILITY: Record<TierGroup, string> = {
+  individual: 'pro',
+  employer: 'employer',
+  recruiter: 'recruiter',
+};
+
+const GROUP_LABEL: Record<TierGroup, string> = {
+  individual: 'Pro Individual',
+  employer: 'Company',
+  recruiter: 'Recruiter',
+};
 
 async function api<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -141,23 +78,16 @@ async function api<T>(path: string, token: string, init: RequestInit = {}): Prom
   return res.json();
 }
 
-// Spec 28 — no role-based plan filtering. Every user sees every plan group;
-// the current-plan card lists all active capabilities from /subscriptions/me.
-const GROUP_LABELS: Record<TierGroup, string> = {
-  individual: 'Individual',
-  employer: 'Employer',
-  recruiter: 'Recruiter',
-};
-
 export default function BillingPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [pendingTier, setPendingTier] = useState<string | null>(null);
+  const [expandedGroup, setExpandedGroup] = useState<TierGroup | null>(null);
+  const [pendingPlan, setPendingPlan] = useState<string | null>(null);
 
   if (!user) return <Navigate to="/login" replace />;
 
-  const currentQuery = useQuery<SubscriptionMe>({
+  const meQuery = useQuery<SubscriptionMe>({
     queryKey: ['subscription', 'me'],
     queryFn: () => api<SubscriptionMe>('/api/v1/subscriptions/me', user.token),
   });
@@ -165,7 +95,7 @@ export default function BillingPage() {
   const checkoutMutation = useMutation({
     mutationFn: async (plan: Plan) => {
       setErrorMsg(null);
-      setPendingTier(plan.tier + ':' + plan.cycle);
+      setPendingPlan(`${plan.tier}:${plan.cycle}`);
       const successUrl = `${window.location.origin}/billing?status=success`;
       const cancelUrl = `${window.location.origin}/billing?status=cancelled`;
       const body: Record<string, unknown> = {
@@ -182,17 +112,16 @@ export default function BillingPage() {
       });
     },
     onSuccess: (data) => {
-      // Redirect straight to Stripe-hosted Checkout — no Stripe.js needed.
       if (data.checkoutUrl) {
         window.location.assign(data.checkoutUrl);
       } else {
         setErrorMsg('Checkout session created but no redirect URL returned.');
-        setPendingTier(null);
+        setPendingPlan(null);
       }
     },
     onError: (err: unknown) => {
       setErrorMsg(err instanceof Error ? err.message : 'Checkout failed.');
-      setPendingTier(null);
+      setPendingPlan(null);
     },
   });
 
@@ -212,192 +141,156 @@ export default function BillingPage() {
     },
   });
 
-  const current = currentQuery.data;
-  const hasActive =
-    !!current && (current.status === 'active' || current.status === 'trialing');
+  const capabilities: Capability[] = meQuery.data?.capabilities ?? [];
+  const activeGroups = new Set(
+    capabilities
+      .map((cap) => CAPABILITY_TO_GROUP[cap.capability])
+      .filter((group): group is TierGroup => Boolean(group)),
+  );
 
-  // Find current plan in our catalogue (best-effort: match dbTier + cycle).
-  const currentPlan = hasActive
-    ? PLANS.find(
-        (p) =>
-          p.dbTier === current?.tier &&
-          (current?.billingCycle ? p.cycle === current.billingCycle : true),
-      )
-    : undefined;
+  const hasActiveSub = meQuery.data?.status === 'active' || meQuery.data?.status === 'trialing';
+  const showSyncWarning = meQuery.data?.reconciliation?.consistent === false;
 
-  const activeCapabilities: Capability[] = current?.capabilities ?? [];
-
-  function ctaFor(plan: Plan): { label: string; variant: 'primary' | 'secondary' | 'danger' } {
-    if (!hasActive) return { label: 'Subscribe', variant: 'primary' };
-    if (currentPlan?.tier === plan.tier && currentPlan?.cycle === plan.cycle) {
-      return { label: 'Current plan', variant: 'secondary' };
-    }
-    if (currentPlan && plan.rank > currentPlan.rank) return { label: 'Upgrade', variant: 'primary' };
-    return { label: 'Switch plan', variant: 'secondary' };
-  }
+  const pathways: Array<{ group: TierGroup; title: string; blurb: string }> = [
+    {
+      group: 'individual',
+      title: 'Become a Pro Individual',
+      blurb: 'Grow your personal brand with premium review visibility and profile upgrades.',
+    },
+    {
+      group: 'employer',
+      title: 'Become a Company',
+      blurb: 'Give your team reputation analytics and improve frontline retention outcomes.',
+    },
+    {
+      group: 'recruiter',
+      title: 'Become a Recruiter',
+      blurb: 'Find strong candidates faster with trusted review-backed hiring signals.',
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50" data-testid="billing-root">
       <NavBar />
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <header>
           <h1 className="text-2xl font-bold text-gray-900">Billing &amp; plans</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Manage your ReviewApp subscription. Payments are processed by Stripe.
-          </p>
+          <p className="text-sm text-gray-600 mt-1">Manage your subscription and choose the role pathway you need.</p>
         </header>
 
         {errorMsg && (
-          <div
-            className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700"
-            data-testid="billing-error"
-          >
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700" data-testid="billing-error">
             {errorMsg}
           </div>
         )}
 
-        {/* Current plan card */}
-        <section
-          className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm"
-          data-testid="billing-current-plan"
-        >
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">
-            Current plan
-          </h2>
-          {currentQuery.isLoading ? (
-            <p className="text-gray-400">Loading subscription…</p>
-          ) : currentQuery.error ? (
-            <p className="text-red-600 text-sm">
-              Could not load subscription:{' '}
-              {currentQuery.error instanceof Error
-                ? currentQuery.error.message
-                : 'unknown error'}
-            </p>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
-                  <div className="text-2xl font-bold text-gray-900 capitalize">
-                    {current?.tier ?? 'free'}
-                  </div>
-                  <div className="text-sm text-gray-600 mt-1">
-                    Status: <span data-testid="billing-status">{current?.status ?? 'none'}</span>
-                    {current?.currentPeriodEnd && (
-                      <>
-                        {' '}
-                        · renews{' '}
-                        {new Date(current.currentPeriodEnd).toLocaleDateString()}
-                      </>
-                    )}
-                    {current?.cancelAtPeriodEnd && (
-                      <span className="ml-2 inline-block px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">
-                        cancels at period end
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {hasActive && !current?.cancelAtPeriodEnd && (
-                  <button
-                    type="button"
-                    onClick={() => cancelMutation.mutate()}
-                    disabled={cancelMutation.isPending}
-                    className="text-sm text-red-700 hover:text-red-900 px-3 py-1.5 rounded-md border border-red-300 hover:bg-red-50 disabled:opacity-50"
-                    data-testid="billing-cancel-btn"
-                  >
-                    {cancelMutation.isPending ? 'Cancelling…' : 'Cancel subscription'}
-                  </button>
-                )}
-              </div>
+        {showSyncWarning && (
+          <div
+            data-testid="billing-reconciliation-warning"
+            className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800"
+          >
+            Your subscription is syncing — refresh in a moment.
+          </div>
+        )}
 
-              {/* Spec 28 — list every active capability. A single user may
-                  hold pro + employer + recruiter concurrently. */}
-              <div data-testid="billing-active-capabilities">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                  Active capabilities
-                </h3>
-                {activeCapabilities.length === 0 ? (
-                  <p className="text-sm text-gray-500">
-                    No active paid capabilities. Subscribe below to unlock features.
-                  </p>
-                ) : (
-                  <ul className="flex flex-wrap gap-2">
-                    {activeCapabilities.map((c) => (
-                      <li
-                        key={c.capability}
-                        data-testid="billing-active-capability"
-                        data-capability={c.capability}
-                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 border border-green-200 text-sm text-green-800"
-                      >
-                        <span className="capitalize font-medium">{c.capability}</span>
-                        <span className="text-xs text-green-700">
-                          · {c.source === 'admin-grant' ? 'admin grant' : 'subscription'}
-                          {c.expiresAt && (
-                            <> · expires {new Date(c.expiresAt).toLocaleDateString()}</>
-                          )}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
+        <section className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm" data-testid="billing-you-are">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">You are</h2>
+          {meQuery.isLoading ? (
+            <p className="text-gray-500">Loading capabilities…</p>
+          ) : meQuery.isError ? (
+            <p className="text-sm text-red-600">
+              Could not load subscription: {meQuery.error instanceof Error ? meQuery.error.message : 'unknown error'}
+            </p>
+          ) : capabilities.length === 0 ? (
+            <p className="text-sm text-gray-600">Free user (no active paid capabilities)</p>
+          ) : (
+            <ul className="flex flex-wrap gap-2">
+              {Array.from(activeGroups).map((group) => (
+                <li
+                  key={group}
+                  className="inline-flex items-center px-3 py-1 rounded-full bg-green-50 border border-green-200 text-sm text-green-800"
+                >
+                  {GROUP_LABEL[group]}
+                </li>
+              ))}
+            </ul>
           )}
         </section>
 
-        {/* Spec 28 — show every plan group. Capability unlocks the feature,
-            regardless of the user's primary role. */}
-        {(['individual', 'employer', 'recruiter'] as TierGroup[]).map((grp) => {
-          const groupPlans = PLANS.filter((p) => p.group === grp);
-          return (
-            <section key={grp} data-testid={`billing-group-${grp}`}>
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
-                {GROUP_LABELS[grp]} plans
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {groupPlans.map((plan) => {
-                  const cta = ctaFor(plan);
-                  const key = plan.tier + ':' + plan.cycle;
-                  const isPending = pendingTier === key && checkoutMutation.isPending;
-                  const isCurrent = cta.label === 'Current plan';
-                  return (
-                    <div
-                      key={key}
-                      className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col"
-                      data-testid="billing-plan-card"
-                      data-plan-tier={plan.tier}
-                      data-plan-cycle={plan.cycle}
+        <section className="space-y-4">
+          {pathways.map((pathway) => {
+            const owned = activeGroups.has(pathway.group);
+            const expanded = expandedGroup === pathway.group;
+            const plans = PLANS.filter((plan) => plan.group === pathway.group);
+            const pathwayTestId = `billing-pathway-${pathway.group}`;
+            const expandTestId = `billing-pathway-${pathway.group}-expand`;
+            const canCancel =
+              owned &&
+              hasActiveSub &&
+              !meQuery.data?.cancelAtPeriodEnd &&
+              meQuery.data?.tier === GROUP_TO_CAPABILITY[pathway.group];
+
+            return (
+              <article
+                key={pathway.group}
+                data-testid={pathwayTestId}
+                className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {owned ? `You're a ${GROUP_LABEL[pathway.group]}` : pathway.title}
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">{pathway.blurb}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedGroup(expanded ? null : pathway.group)}
+                      className="px-3 py-1.5 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
                     >
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{plan.name}</h3>
-                        <p className="text-lg font-bold text-gray-900 mt-1">{plan.price}</p>
-                        <p className="text-sm text-gray-600 mt-2">{plan.blurb}</p>
-                      </div>
+                      {owned ? 'Change plan' : 'Choose plan'}
+                    </button>
+                    {owned && (
                       <button
                         type="button"
-                        onClick={() => checkoutMutation.mutate(plan)}
-                        disabled={isPending || isCurrent}
-                        className={
-                          'mt-4 px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50 ' +
-                          (cta.variant === 'primary'
-                            ? 'bg-blue-600 text-white hover:bg-blue-700'
-                            : cta.variant === 'danger'
-                              ? 'bg-red-600 text-white hover:bg-red-700'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200')
-                        }
-                        data-testid="billing-upgrade-btn"
+                        onClick={() => cancelMutation.mutate()}
+                        disabled={!canCancel || cancelMutation.isPending}
+                        className="px-3 py-1.5 rounded-md text-sm font-medium border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
                       >
-                        {isPending ? 'Redirecting to Stripe…' : cta.label}
+                        {cancelMutation.isPending ? 'Cancelling…' : 'Cancel'}
                       </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
-        <p className="text-xs text-gray-500">
-          Test mode — use card 4242 4242 4242 4242, any future expiry, any CVC.
-        </p>
+                    )}
+                  </div>
+                </div>
+
+                {expanded && (
+                  <div data-testid={expandTestId} className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {plans.map((plan) => {
+                      const pendingKey = `${plan.tier}:${plan.cycle}`;
+                      const isPending = checkoutMutation.isPending && pendingPlan === pendingKey;
+                      return (
+                        <button
+                          key={pendingKey}
+                          type="button"
+                          onClick={() => checkoutMutation.mutate(plan)}
+                          disabled={isPending}
+                          className="text-left p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
+                        >
+                          <div className="text-sm font-semibold text-gray-900">{plan.label}</div>
+                          <div className="text-sm text-gray-700">{plan.price}</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {isPending ? 'Redirecting to Stripe…' : owned ? 'Change to this plan' : 'Start this plan'}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </section>
       </main>
     </div>
   );
