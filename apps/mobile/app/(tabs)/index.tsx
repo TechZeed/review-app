@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import React, { useCallback } from "react";
 import {
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,6 +13,7 @@ import {
 
 import { ProfileHero } from "@/components/ProfileHero";
 import { Screen } from "@/components/Screen";
+import { useAuth } from "@/context/AuthContext";
 import { fetchMe, fetchProfile, type Profile } from "@/lib/api";
 
 // Same ordering as web quality palette.
@@ -25,6 +27,21 @@ const QUALITY_COLORS: Record<string, { bg: string; fg: string }> = {
 
 export default function HomeScreen() {
   const meQuery = useQuery({ queryKey: ["me"], queryFn: fetchMe });
+  const { signOut, user } = useAuth();
+
+  const onSignOut = useCallback(() => {
+    Alert.alert("Sign out?", "You'll need to sign in again to see your profile.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign out",
+        style: "destructive",
+        onPress: async () => {
+          await signOut();
+          // (auth)/login redirect happens automatically via TabsLayout token guard
+        },
+      },
+    ]);
+  }, [signOut]);
 
   // Spec 19 B4: /profiles/me doesn't expose qualityBreakdown, only
   // /profiles/:slug does. Fetch the public view to derive the top qualities.
@@ -129,6 +146,24 @@ export default function HomeScreen() {
             )}
           </View>
         ) : null}
+
+        <View style={styles.accountSection}>
+          {user?.email && (
+            <Text style={styles.accountEmail} testID="home-account-email">
+              Signed in as {user.email}
+            </Text>
+          )}
+          <Pressable
+            onPress={onSignOut}
+            testID="home-sign-out"
+            style={({ pressed }) => [
+              styles.signOut,
+              pressed && styles.signOutPressed,
+            ]}
+          >
+            <Text style={styles.signOutText}>Sign out</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </Screen>
   );
@@ -242,5 +277,30 @@ const styles = StyleSheet.create({
   ctaText: {
     color: "#ffffff",
     fontWeight: "600",
+  },
+  accountSection: {
+    marginTop: 32,
+    alignItems: "center",
+    gap: 8,
+  },
+  accountEmail: {
+    color: "#64748b",
+    fontSize: 12,
+  },
+  signOut: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    backgroundColor: "#ffffff",
+  },
+  signOutPressed: {
+    backgroundColor: "#fef2f2",
+  },
+  signOutText: {
+    color: "#b91c1c",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });
