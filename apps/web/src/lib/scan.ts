@@ -12,7 +12,23 @@ export async function scanProfile(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ deviceFingerprint }),
   });
-  const scanData = (await scanRes.json()) as ScanResponse;
-  if (!scanRes.ok) throw new Error("Failed to start review");
-  return scanData;
+  const scanData = await scanRes.json();
+
+  if (!scanRes.ok) {
+    const errorMessage =
+      typeof scanData === "object" &&
+      scanData !== null &&
+      "message" in scanData &&
+      typeof scanData.message === "string"
+        ? scanData.message
+        : typeof scanData === "object" &&
+            scanData !== null &&
+            "error" in scanData &&
+            typeof scanData.error === "string"
+          ? scanData.error
+          : `Failed to start review (${scanRes.status})`;
+    throw new Error(errorMessage);
+  }
+
+  return scanData as ScanResponse;
 }

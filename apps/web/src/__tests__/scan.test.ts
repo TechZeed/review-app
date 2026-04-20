@@ -3,7 +3,7 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { scanProfile, type ScanResponse } from "../lib/scan";
 
-const API_URL = "http://localhost:3000";
+const API_URL = process.env.VITE_API_URL ?? "http://localhost:3000";
 
 const server = setupServer();
 
