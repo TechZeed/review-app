@@ -39,7 +39,7 @@ export default defineConfig({
     {
       name: "scanner",
       use: { baseURL: SCAN_URL },
-      testMatch: /04-scanner\.spec\.ts/,
+      testMatch: /(04-scanner|11-scanner-media|12-scanner-cooldown|13-public-profile)\.spec\.ts/,
     },
     {
       name: "dashboard",
