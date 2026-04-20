@@ -1,6 +1,6 @@
 # ReviewApp OpenAPI — auto-generated, do not hand-edit.
 # Regenerate: task dev:openapi:regen
-# Generated: 2026-04-20T08:40:59.236Z
+# Generated: 2026-04-20T10:43:00.294Z
 
 openapi: 3.1.0
 info:
@@ -305,6 +305,56 @@ components:
       required:
         - id
         - capability
+    CreateUserResponse:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            name:
+              type: string
+            role:
+              type: string
+              enum:
+                - INDIVIDUAL
+                - EMPLOYER
+                - RECRUITER
+                - ADMIN
+            status:
+              type: string
+              enum:
+                - active
+                - suspended
+            provider:
+              type: string
+            avatarUrl:
+              type:
+                - string
+                - "null"
+            isApproved:
+              type: boolean
+            isActive:
+              type: boolean
+          required:
+            - id
+            - email
+            - name
+            - role
+            - status
+            - provider
+            - isApproved
+            - isActive
+        accessToken:
+          type: string
+      required:
+        - user
+        - accessToken
     CreateUser:
       type: object
       properties:
@@ -325,6 +375,9 @@ components:
             - EMPLOYER
             - RECRUITER
             - ADMIN
+        phone:
+          type: string
+          pattern: ^\+[1-9]\d{6,14}$
       required:
         - email
         - password
@@ -339,6 +392,32 @@ components:
         firebaseIdToken:
           type: string
           minLength: 1
+    GrantCapabilityResponse:
+      type: object
+      properties:
+        capabilities:
+          type: array
+          items:
+            type: object
+            properties:
+              capability:
+                type: string
+                enum: *a1
+              source:
+                type: string
+                enum: &a2
+                  - subscription
+                  - admin-grant
+              expiresAt:
+                type:
+                  - string
+                  - "null"
+            required:
+              - capability
+              - source
+              - expiresAt
+      required:
+        - capabilities
     GrantCapability:
       type: object
       properties:
@@ -406,6 +485,30 @@ components:
         - name
         - role
         - firebaseToken
+    RevokeCapabilityResponse:
+      type: object
+      properties:
+        capabilities:
+          type: array
+          items:
+            type: object
+            properties:
+              capability:
+                type: string
+                enum: *a1
+              source:
+                type: string
+                enum: *a2
+              expiresAt:
+                type:
+                  - string
+                  - "null"
+            required:
+              - capability
+              - source
+              - expiresAt
+      required:
+        - capabilities
     RoleRequestIdParam:
       type: object
       properties:
@@ -521,6 +624,32 @@ components:
           format: uuid
       required:
         - mediaId
+    ReviewMediaParam:
+      type: object
+      properties:
+        reviewId:
+          type: string
+          format: uuid
+      required:
+        - reviewId
+    ReviewMediaText:
+      type: object
+      properties:
+        reviewToken:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+            - text
+        content:
+          type: string
+          minLength: 1
+          maxLength: 280
+      required:
+        - reviewToken
+        - type
+        - content
     UploadMedia:
       type: object
       properties:
@@ -869,7 +998,7 @@ components:
           default: 20
         quality:
           type: string
-          enum: &a2
+          enum: &a3
             - expertise
             - care
             - delivery
@@ -922,14 +1051,14 @@ components:
           type: array
           items:
             type: string
-            enum: *a2
+            enum: *a3
           minItems: 1
           maxItems: 2
         qualityDisplayOrder:
           type: array
           items:
             type: string
-            enum: *a2
+            enum: *a3
         thumbsUp:
           type: boolean
           enum:
@@ -1332,8 +1461,12 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateUser"
       responses:
-        "200":
+        "201":
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateUserResponse"
         "401":
           description: Unauthorized
           content:
@@ -1608,8 +1741,12 @@ paths:
             schema:
               $ref: "#/components/schemas/GrantCapability"
       responses:
-        "200":
+        "201":
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrantCapabilityResponse"
         "401":
           description: Unauthorized
           content:
@@ -1654,6 +1791,10 @@ paths:
       responses:
         "200":
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevokeCapabilityResponse"
         "401":
           description: Unauthorized
           content:
@@ -2869,6 +3010,45 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/SubmitReview"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/reviews/{reviewId}/media:
+    post:
+      tags:
+        - review
+      summary: POST /api/v1/reviews/{reviewId}/media
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: reviewId
+          in: path
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewMediaText"
       responses:
         "200":
           description: OK

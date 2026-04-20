@@ -241,6 +241,9 @@ function guessResponseRef(r: RouteBlob): string | undefined {
   const p = `${r.method} ${r.routePath}`;
   if (p === "POST /login") return "ExchangeTokenResponse";
   if (p === "POST /exchange-token") return "ExchangeTokenResponse";
+  if (p === "POST /admin/create-user" && r.module === "auth") return "CreateUserResponse";
+  if (p === "POST /admin/users/:id/capabilities" && r.module === "auth") return "GrantCapabilityResponse";
+  if (p === "DELETE /admin/users/:id/capabilities/:capability" && r.module === "auth") return "RevokeCapabilityResponse";
   if (r.routePath === "/me" && r.module === "auth" && r.method === "GET") return "AuthUser";
   if (r.routePath === "/me" && r.module === "subscription" && r.method === "GET") return "SubscriptionMe";
   if (r.routePath === "/me" && r.module === "profile" && r.method === "GET") return "Profile";
@@ -250,6 +253,17 @@ function guessResponseRef(r: RouteBlob): string | undefined {
   if (r.routePath === "/my-submissions" && r.module === "review" && r.method === "GET") return "ReviewsPage";
   if (r.routePath === "/scan/:slug" && r.module === "review" && r.method === "POST") return "ScanResponse";
   return undefined;
+}
+
+function guessSuccessStatus(r: RouteBlob): 200 | 201 {
+  const p = `${r.method} ${r.routePath}`;
+  if (
+    (p === "POST /admin/create-user" && r.module === "auth") ||
+    (p === "POST /admin/users/:id/capabilities" && r.module === "auth")
+  ) {
+    return 201;
+  }
+  return 200;
 }
 
 function registerRoutes() {
@@ -263,6 +277,7 @@ function registerRoutes() {
       const fullPath = (mount.path + r.routePath).replace(/\/\//g, "/").replace(/:([A-Za-z0-9_]+)/g, "{$1}");
       const pathParams = [...r.routePath.matchAll(/:([A-Za-z0-9_]+)/g)].map((m) => m[1]);
       const responseRef = guessResponseRef(r);
+      const successStatus = guessSuccessStatus(r);
 
       const op: Parameters<typeof registry.registerPath>[0] = {
         method: r.method.toLowerCase() as any,
@@ -287,7 +302,7 @@ function registerRoutes() {
             : {}),
         } as any,
         responses: {
-          200: responseRef
+          [successStatus]: responseRef
             ? {
                 description: "OK",
                 content: {
