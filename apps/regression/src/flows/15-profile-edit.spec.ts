@@ -97,6 +97,8 @@ test.describe("profile edit (spec PRD-01 / GAP)", () => {
     const api = await request.newContext({ baseURL: API_URL });
     let accessToken = "";
     let originalHeadline = "";
+    let originalBio = "";
+    let originalIndustry = "";
     const testRunId = `regression-ui-${Date.now()}`;
     const newHeadline = `Senior Engineer · ${testRunId}`;
     try {
@@ -109,6 +111,8 @@ test.describe("profile edit (spec PRD-01 / GAP)", () => {
       expect(beforeRes.ok()).toBeTruthy();
       const before = await beforeRes.json();
       originalHeadline = before.headline ?? "";
+      originalBio = before.bio ?? "";
+      originalIndustry = before.industry ?? "";
 
       const editButton = page.getByTestId("edit-profile-button");
       await expect(editButton).toBeVisible({ timeout: 10_000 });
@@ -117,13 +121,17 @@ test.describe("profile edit (spec PRD-01 / GAP)", () => {
       const form = page.getByTestId("profile-edit-form");
       await expect(form).toBeVisible();
       await expect(page.getByLabel("Headline")).toHaveValue(originalHeadline);
+      await expect(page.getByLabel("Bio")).toHaveValue(originalBio);
+      await expect(page.getByLabel("Industry")).toHaveValue(originalIndustry);
 
       await page.getByLabel("Headline").fill(newHeadline);
       await page.getByTestId("save-profile-button").click();
 
       await expect(form).not.toBeVisible();
       await page.reload();
-      await expect(page.getByText(newHeadline, { exact: true })).toBeVisible({ timeout: 10_000 });
+      await expect(
+        page.getByTestId("profile-card").getByText(newHeadline, { exact: true }),
+      ).toBeVisible({ timeout: 10_000 });
     } finally {
       if (accessToken) {
         await api.put("/api/v1/profiles/me", {

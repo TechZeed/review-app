@@ -21,6 +21,17 @@ interface ProfileFormValues {
   industry: string;
 }
 
+function hasProfileChanges(
+  current: ProfileFormValues,
+  initial: ProfileFormValues,
+): boolean {
+  return (
+    current.headline !== initial.headline ||
+    current.bio !== initial.bio ||
+    current.industry !== initial.industry
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -70,13 +81,15 @@ export default function DashboardPage() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (values: ProfileFormValues) => {
+      if (!user?.token) throw new Error('Not authenticated');
+
       const payload: { headline?: string; bio?: string; industry?: string } = {};
       if (values.headline !== initialValues.headline) payload.headline = values.headline;
       if (values.bio !== initialValues.bio) payload.bio = values.bio;
       if (values.industry !== initialValues.industry) payload.industry = values.industry;
 
       if (Object.keys(payload).length === 0) return;
-      await updateMyProfile(user!.token, payload);
+      await updateMyProfile(user.token, payload);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['profile', 'me'] });
@@ -110,6 +123,10 @@ export default function DashboardPage() {
   const onEditSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setEditError(null);
+    if (!hasProfileChanges(formValues, initialValues)) {
+      setIsEditOpen(false);
+      return;
+    }
     updateProfileMutation.mutate(formValues);
   };
 
@@ -215,9 +232,16 @@ export default function DashboardPage() {
         ) : null}
 
         {isEditOpen ? (
-          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-profile-title"
+          >
             <div className="w-full max-w-lg bg-white rounded-xl border border-gray-200 shadow-xl p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Edit profile</h2>
+              <h2 id="edit-profile-title" className="text-lg font-semibold text-gray-900 mb-4">
+                Edit profile
+              </h2>
               <form data-testid="profile-edit-form" className="space-y-4" onSubmit={onEditSubmit}>
                 <div>
                   <label htmlFor="headline" className="block text-sm font-medium text-gray-700 mb-1">
