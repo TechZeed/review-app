@@ -198,6 +198,7 @@ export class SubscriptionService {
     ) {
       const expectedCapability = this.expectedCapabilityForPaidTier(sub.tier);
       if (expectedCapability) {
+        await capabilityRepo.cleanupInstantExpirySubscriptionRows(userId);
         await capabilityRepo.upsert({
           userId,
           capability: expectedCapability,

@@ -19,6 +19,8 @@ export interface UpsertCapabilityInput {
   metadata?: Record<string, unknown> | null;
 }
 
+const INSTANT_EXPIRY_THRESHOLD_MINUTES = 5;
+
 export class CapabilityRepo {
   async isActive(userId: string, capability: string): Promise<boolean> {
     const sequelize = getSequelize();
@@ -126,6 +128,24 @@ export class CapabilityRepo {
         );
       }
     });
+  }
+
+  async cleanupInstantExpirySubscriptionRows(userId: string): Promise<void> {
+    const sequelize = getSequelize();
+    await sequelize.query(
+      `DELETE FROM user_capabilities
+       WHERE user_id = :userId
+         AND source = 'subscription'
+         AND expires_at IS NOT NULL
+         AND expires_at < created_at + (:thresholdMinutes * INTERVAL '1 minute')`,
+      {
+        replacements: {
+          userId,
+          thresholdMinutes: INSTANT_EXPIRY_THRESHOLD_MINUTES,
+        },
+        type: QueryTypes.DELETE,
+      },
+    );
   }
 
   async setExpiry(subscriptionId: string, expiresAt: Date): Promise<void> {
