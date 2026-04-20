@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../App';
@@ -21,11 +21,13 @@ interface AdminUser {
   id: string;
   email: string;
   name: string;
-  role: string;
-  status: string;
+  role: 'INDIVIDUAL' | 'EMPLOYER' | 'RECRUITER' | 'ADMIN';
+  status: 'active' | 'suspended';
   provider: string;
   createdAt: string;
 }
+
+const ADMIN_ROLES: AdminUser['role'][] = ['INDIVIDUAL', 'EMPLOYER', 'RECRUITER', 'ADMIN'];
 
 async function api<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -42,6 +44,7 @@ export default function AdminPage() {
   if (user.role !== 'ADMIN') return <Navigate to="/dashboard" replace />;
 
   const [tab, setTab] = useState<'requests' | 'users'>('requests');
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const qc = useQueryClient();
 
   const roleRequests = useQuery({
@@ -65,6 +68,46 @@ export default function AdminPage() {
     mutationFn: (id: string) =>
       api<{ id: string }>(`/api/v1/auth/admin/role-requests/${id}/reject`, user.token, { method: 'POST' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'role-requests'] }),
+  });
+
+  const updateRole = useMutation({
+    mutationFn: ({ id, role }: { id: string; role: AdminUser['role'] }) =>
+      api<{ user: AdminUser }>(`/api/v1/auth/admin/users/${id}`, user.token, {
+        method: 'PATCH',
+        body: JSON.stringify({ role }),
+      }),
+    onMutate: ({ id }) => {
+      setRowErrors((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
+    onError: (error, { id }) => {
+      setRowErrors((prev) => ({ ...prev, [id]: error instanceof Error ? error.message : 'Failed to update role.' }));
+    },
+  });
+
+  const updateStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: AdminUser['status'] }) =>
+      api<{ user: AdminUser }>(`/api/v1/auth/admin/users/${id}/status`, user.token, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }),
+    onMutate: ({ id }) => {
+      setRowErrors((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
+    onError: (error, { id }) => {
+      setRowErrors((prev) => ({ ...prev, [id]: error instanceof Error ? error.message : 'Failed to update user status.' }));
+    },
   });
 
   return (
@@ -161,18 +204,78 @@ export default function AdminPage() {
                     <th className="px-4 py-2">Role</th>
                     <th className="px-4 py-2">Status</th>
                     <th className="px-4 py-2">Provider</th>
+                    <th className="px-4 py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.data?.users.map((u) => (
-                    <tr key={u.id} data-testid="admin-user-row" className="border-t border-gray-100">
-                      <td className="px-4 py-2 text-gray-900">{u.name}</td>
-                      <td className="px-4 py-2 text-gray-600">{u.email}</td>
-                      <td className="px-4 py-2">{u.role}</td>
-                      <td className="px-4 py-2">{u.status}</td>
-                      <td className="px-4 py-2 text-gray-500">{u.provider}</td>
-                    </tr>
-                  ))}
+                  {users.data?.users.map((u) => {
+                    const rolePending = updateRole.isPending && updateRole.variables?.id === u.id;
+                    const statusPending = updateStatus.isPending && updateStatus.variables?.id === u.id;
+                    const isPending = rolePending || statusPending;
+                    const nextStatus: AdminUser['status'] = u.status === 'active' ? 'suspended' : 'active';
+                    const statusLabel = u.status === 'active' ? 'Suspend' : 'Activate';
+                    const isSelf = u.id === user.id;
+
+                    return (
+                      <Fragment key={u.id}>
+                        <tr data-testid="admin-user-row" className="border-t border-gray-100">
+                          <td className="px-4 py-2 text-gray-900">{u.name}</td>
+                          <td className="px-4 py-2 text-gray-600">{u.email}</td>
+                          <td className="px-4 py-2">
+                            <select
+                              data-testid="admin-role-select"
+                              value={u.role}
+                              disabled={isPending}
+                              className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-900 disabled:opacity-50"
+                              onChange={(e) => {
+                                const role = e.currentTarget.value as AdminUser['role'];
+                                if (role === u.role) return;
+                                updateRole.mutate({ id: u.id, role });
+                              }}
+                            >
+                              {ADMIN_ROLES.map((role) => (
+                                <option key={role} value={role}>
+                                  {role}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-4 py-2">{u.status}</td>
+                          <td className="px-4 py-2 text-gray-500">{u.provider}</td>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center gap-2">
+                              <button
+                                data-testid="admin-status-toggle"
+                                type="button"
+                                disabled={isPending || isSelf}
+                                onClick={() => {
+                                  if (
+                                    !window.confirm(
+                                      `${statusLabel} ${u.email}?`,
+                                    )
+                                  )
+                                    return;
+                                  updateStatus.mutate({ id: u.id, status: nextStatus });
+                                }}
+                                className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+                              >
+                                {statusLabel}
+                              </button>
+                              {isSelf && <span className="text-xs text-gray-500">Current user</span>}
+                              {isPending && <span className="text-xs text-gray-500">Saving…</span>}
+                            </div>
+                          </td>
+                        </tr>
+                        {rowErrors[u.id] && (
+                          <tr className="border-t border-gray-100">
+                            <td className="px-4 pb-2 text-sm text-red-600" colSpan={6}>
+                              {rowErrors[u.id]}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
