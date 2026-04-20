@@ -259,6 +259,8 @@ export default function BillingPage() {
     if (currentPlan?.tier === plan.tier && currentPlan?.cycle === plan.cycle) {
       return { label: 'Current plan', variant: 'secondary' };
     }
+    // Spec 51: active subscribers switch plans via Stripe Billing Portal,
+    // so every non-current plan uses a single "Switch plan" CTA.
     return { label: 'Switch plan', variant: 'secondary' };
   }
 

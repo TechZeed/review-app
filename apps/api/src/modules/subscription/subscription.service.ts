@@ -37,6 +37,28 @@ const TIER_TO_DB_TIER: Record<string, string> = {
 export class SubscriptionService {
   constructor(private repo: SubscriptionRepository) {}
 
+  private resolvePortalReturnUrl(returnUrl?: string): string {
+    const defaultUrl = `${env.FRONTEND_URL}/billing`;
+    if (!returnUrl) return defaultUrl;
+
+    let candidate: URL;
+    let expected: URL;
+    try {
+      candidate = new URL(returnUrl);
+      expected = new URL(env.FRONTEND_URL);
+    } catch (error) {
+      const sanitizedReturnUrl = returnUrl.replace(/[\r\n\t]/g, '').slice(0, 512);
+      logger.warn('Invalid portal return URL', { returnUrl: sanitizedReturnUrl, frontendUrl: env.FRONTEND_URL, error });
+      throw new AppError('Invalid return URL', 400, 'INVALID_RETURN_URL');
+    }
+
+    if (candidate.origin !== expected.origin) {
+      throw new AppError('Invalid return URL origin', 400, 'INVALID_RETURN_URL');
+    }
+
+    return returnUrl;
+  }
+
   async createCheckoutSession(
     userId: string,
     input: CreateCheckoutInput,
@@ -157,7 +179,7 @@ export class SubscriptionService {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: sub.stripeCustomerId,
-      return_url: returnUrl ?? `${env.FRONTEND_URL}/billing`,
+      return_url: this.resolvePortalReturnUrl(returnUrl),
     });
 
     return {

@@ -29,7 +29,7 @@ export class SubscriptionController {
 
   portal = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const result = await this.service.createPortalSession(req.user!.id, req.body?.returnUrl);
+      const result = await this.service.createPortalSession(req.user!.id, req.body.returnUrl);
       res.status(201).json(result);
     } catch (error) {
       next(error);
