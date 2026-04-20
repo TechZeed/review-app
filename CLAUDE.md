@@ -48,7 +48,7 @@ Key tasks:
 - `local:stripe:listen` — forward Stripe webhooks to local API
 
 **Dev** (deploys to GCP, reads `.env.dev`):
-- `dev:deploy:api | deploy:web | deploy:ui | deploy:all` — Cloud Run deploy
+- `dev:deploy:api | deploy:web | deploy:ui | deploy:all` — Cloud Run deploy (`deploy:api` + `deploy:all` run `migrate` first and fail-fast before creating a revision if migration fails)
 - `dev:logs` — live stream Cloud Run logs (tees to `devlogs.log`)
 - `dev:sync:vault` — push `.env.dev` strings + vault-file secrets to GCP Secret Manager + GitHub Secrets (`:dry` for preview)
 - `dev:vault:pull [-- --force]` — fetch GCP vault files to `infra/dev/vault/` (new-machine bootstrap)
