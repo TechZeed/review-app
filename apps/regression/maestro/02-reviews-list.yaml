@@ -1,0 +1,17 @@
+# Flow 2 — Reviewee sees their reviews (spec 35 §5.2)
+# Catches: reviews list not rendering, pagination broken, quality chips missing.
+# Ramesh has 150 seeded reviews across all 5 qualities; scroll-to-match
+# exercises virtualization.
+#
+# selectors unverified; update on first real device/emulator run.
+appId: sg.reviewapp.app
+---
+- launchApp
+- tapOn: "Reviews"
+- assertVisible:
+    text: "expertise"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "care"
+- assertVisible: "care"

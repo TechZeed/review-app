@@ -1,0 +1,14 @@
+# Flow 4 — Profile header rendering (spec 35 §5.4)
+# Catches: /profiles/me contract drift (spec 19 mobile API gaps). Fails loud
+# when the backend renames a field or the seed data drifts from 150.
+#
+# selectors unverified; update on first real device/emulator run.
+appId: sg.reviewapp.app
+---
+- launchApp
+- tapOn: "Home"
+- assertVisible: "Ramesh"
+- assertVisible: "Senior Sales Consultant"
+- assertVisible:
+    text: "150"
+    timeout: 5000

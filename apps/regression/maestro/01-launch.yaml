@@ -1,0 +1,20 @@
+# Flow 1 — Cold launch + email login (spec 35 §5.1)
+# Catches: app won't launch, email affordance hidden (the 2026-04-19 fix),
+# login failing, post-login dashboard not reaching the user's name.
+#
+# selectors unverified; update on first real device/emulator run.
+appId: sg.reviewapp.app
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Continue with Google"
+- assertVisible: "Sign in with email and password"
+- tapOn: "Sign in with email and password"
+- assertVisible: "Email"
+- inputText: "ramesh@reviewapp.demo"
+- tapOn: "Password"
+- inputText: "Demo123"
+- tapOn: "Sign in"
+- assertVisible:
+    text: "Ramesh"
+    timeout: 15000

@@ -1,0 +1,11 @@
+# Flow 5 — Logout returns to the login screen (spec 35 §5.5)
+# Catches: logout doesn't clear session, or the Settings screen is broken.
+#
+# selectors unverified; update on first real device/emulator run.
+appId: sg.reviewapp.app
+---
+- launchApp
+- tapOn: "Settings"
+- tapOn: "Sign out"
+- assertVisible: "Continue with Google"
+- assertVisible: "Sign in with email and password"

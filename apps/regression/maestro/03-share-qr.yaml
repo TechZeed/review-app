@@ -1,0 +1,18 @@
+# Flow 3 — Share QR via native share sheet (spec 35 §5.3)
+# Catches: QR doesn't render, share button throws, share sheet never opens.
+# Maestro cannot assert the OS share sheet contents, but can detect we
+# returned to the Share tab after pressing Back.
+#
+# selectors unverified; update on first real device/emulator run.
+appId: sg.reviewapp.app
+---
+- launchApp
+- tapOn: "Share"
+- assertVisible:
+    id: "reviewee-qr"
+    timeout: 5000
+- tapOn:
+    id: "share-qr-button"
+- waitForAnimationToEnd
+- pressKey: "Back"
+- assertVisible: "Share"
