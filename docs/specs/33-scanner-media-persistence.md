@@ -1,4 +1,4 @@
-# Spec 31 — Scanner Media Persistence (Text/Voice/Video)
+# Spec 33 — Scanner Media Persistence (Text/Voice/Video)
 
 **Project:** ReviewApp
 **Repo:** TechZeed/review-app

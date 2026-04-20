@@ -1,4 +1,4 @@
-# Spec 32 — Public Profile Reputation Page
+# Spec 34 — Public Profile Reputation Page
 
 **Project:** ReviewApp
 **Repo:** TechZeed/review-app
