@@ -40,6 +40,7 @@ export const createUserSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   name: z.string().min(2, 'Name must be at least 2 characters').max(100),
   role: z.enum(['INDIVIDUAL', 'EMPLOYER', 'RECRUITER', 'ADMIN']),
+  phone: z.string().regex(/^\+[1-9]\d{6,14}$/, 'Phone must be in E.164 format').optional(),
 });
 
 export const roleRequestSchema = z.object({
@@ -77,4 +78,35 @@ export const grantCapabilitySchema = z.object({
 export const capabilityParamSchema = z.object({
   id: z.string().uuid('Invalid user ID'),
   capability: z.enum(CAPABILITY_NAMES),
+});
+
+const authUserSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  name: z.string(),
+  role: z.enum(['INDIVIDUAL', 'EMPLOYER', 'RECRUITER', 'ADMIN']),
+  status: z.enum(['active', 'suspended']),
+  provider: z.string(),
+  avatarUrl: z.string().nullable().optional(),
+  isApproved: z.boolean(),
+  isActive: z.boolean(),
+});
+
+const capabilitySchema = z.object({
+  capability: z.enum(CAPABILITY_NAMES),
+  source: z.enum(['subscription', 'admin-grant']),
+  expiresAt: z.string().nullable(),
+});
+
+export const createUserResponseSchema = z.object({
+  user: authUserSchema,
+  accessToken: z.string(),
+});
+
+export const grantCapabilityResponseSchema = z.object({
+  capabilities: z.array(capabilitySchema),
+});
+
+export const revokeCapabilityResponseSchema = z.object({
+  capabilities: z.array(capabilitySchema),
 });

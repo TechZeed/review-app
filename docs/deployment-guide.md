@@ -535,6 +535,8 @@ npm run db:migrate
 npm run db:migrate:status
 ```
 
+For Cloud Run deploys via Taskfile, `task dev:deploy:api` and `task dev:deploy:all` (and prod mirrors) run `migrate` as a dependency before deploy. If migrations fail, the deploy step does not run.
+
 ### Seeding Data
 
 ```bash

@@ -1,0 +1,30 @@
+version: "3"
+
+# dotenv is loaded by the parent Taskfile.yml include site when prod is enabled.
+
+vars:
+  REPO_ROOT:
+    sh: git rev-parse --show-toplevel
+
+tasks:
+  migrate:
+    desc: Run migrations on prod Cloud SQL
+    cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh prod migrate"
+
+  deploy:api:
+    desc: Deploy API to Cloud Run prod
+    deps: [migrate]
+    cmd: node {{.REPO_ROOT}}/infra/scripts/deploy.js api prod
+
+  deploy:web:
+    desc: Deploy Web to Cloud Run prod
+    cmd: node {{.REPO_ROOT}}/infra/scripts/deploy.js web prod
+
+  deploy:ui:
+    desc: Deploy UI to Cloud Run prod
+    cmd: node {{.REPO_ROOT}}/infra/scripts/deploy.js ui prod
+
+  deploy:all:
+    desc: Deploy all services to Cloud Run prod
+    deps: [migrate]
+    cmd: node {{.REPO_ROOT}}/infra/scripts/deploy.js all prod

@@ -29,6 +29,7 @@ export interface CreateUserInput {
   password: string;
   name: string;
   role: 'INDIVIDUAL' | 'EMPLOYER' | 'RECRUITER' | 'ADMIN';
+  phone?: string;
 }
 
 export interface RoleRequestInput {

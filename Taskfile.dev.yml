@@ -46,6 +46,7 @@ tasks:
 
   deploy:api:
     desc: Deploy API to Cloud Run dev
+    deps: [migrate]
     cmd: node {{.REPO_ROOT}}/infra/scripts/deploy.js api dev
 
   deploy:web:
@@ -58,6 +59,7 @@ tasks:
 
   deploy:all:
     desc: Deploy all services to Cloud Run dev
+    deps: [migrate]
     cmd: node {{.REPO_ROOT}}/infra/scripts/deploy.js all dev
 
   # ─── Mobile ──────────────────────────────────────────────────────────────────

@@ -526,11 +526,13 @@ export interface paths {
             };
             responses: {
                 /** @description OK */
-                200: {
+                201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["CreateUserResponse"];
+                    };
                 };
                 /** @description Unauthorized */
                 401: {
@@ -1024,11 +1026,13 @@ export interface paths {
             };
             responses: {
                 /** @description OK */
-                200: {
+                201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["GrantCapabilityResponse"];
+                    };
                 };
                 /** @description Unauthorized */
                 401: {
@@ -1100,7 +1104,9 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["RevokeCapabilityResponse"];
+                    };
                 };
                 /** @description Unauthorized */
                 401: {
@@ -4486,6 +4492,10 @@ export interface components {
             cancelAtPeriodEnd?: boolean;
             stripeSubscriptionId?: string | null;
             capabilities: components["schemas"]["Capability"][];
+            reconciliation: {
+                consistent: boolean;
+                issues: ("tier-without-capability" | "orphan-capability")[];
+            };
         };
         QualityBreakdown: {
             expertise: number;
@@ -4556,6 +4566,24 @@ export interface components {
             /** @enum {string} */
             capability: "pro" | "employer" | "recruiter";
         };
+        CreateUserResponse: {
+            user: {
+                /** Format: uuid */
+                id: string;
+                /** Format: email */
+                email: string;
+                name: string;
+                /** @enum {string} */
+                role: "INDIVIDUAL" | "EMPLOYER" | "RECRUITER" | "ADMIN";
+                /** @enum {string} */
+                status: "active" | "suspended";
+                provider: string;
+                avatarUrl?: string | null;
+                isApproved: boolean;
+                isActive: boolean;
+            };
+            accessToken: string;
+        };
         CreateUser: {
             /** Format: email */
             email: string;
@@ -4563,10 +4591,20 @@ export interface components {
             name: string;
             /** @enum {string} */
             role: "INDIVIDUAL" | "EMPLOYER" | "RECRUITER" | "ADMIN";
+            phone?: string;
         };
         ExchangeFirebaseToken: {
             firebaseToken?: string;
             firebaseIdToken?: string;
+        };
+        GrantCapabilityResponse: {
+            capabilities: {
+                /** @enum {string} */
+                capability: "pro" | "employer" | "recruiter";
+                /** @enum {string} */
+                source: "subscription" | "admin-grant";
+                expiresAt: string | null;
+            }[];
         };
         GrantCapability: {
             /** @enum {string} */
@@ -4593,6 +4631,15 @@ export interface components {
             firebaseToken: string;
             industry?: string;
             organizationName?: string;
+        };
+        RevokeCapabilityResponse: {
+            capabilities: {
+                /** @enum {string} */
+                capability: "pro" | "employer" | "recruiter";
+                /** @enum {string} */
+                source: "subscription" | "admin-grant";
+                expiresAt: string | null;
+            }[];
         };
         RoleRequestIdParam: {
             /** Format: uuid */
@@ -4840,6 +4887,10 @@ export interface components {
         CreatePortal: {
             /** Format: uri */
             returnUrl?: string;
+        };
+        Reconciliation: {
+            consistent: boolean;
+            issues: ("tier-without-capability" | "orphan-capability")[];
         };
         Initiate: {
             slug: string;

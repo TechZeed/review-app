@@ -1,6 +1,6 @@
 # ReviewApp OpenAPI — auto-generated, do not hand-edit.
 # Regenerate: task dev:openapi:regen
-# Generated: 2026-04-20T12:02:38.516Z
+# Generated: 2026-04-20T12:56:06.530Z
 
 openapi: 3.1.0
 info:
@@ -112,10 +112,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Capability"
+        reconciliation:
+          type: object
+          properties:
+            consistent:
+              type: boolean
+            issues:
+              type: array
+              items:
+                type: string
+                enum:
+                  - tier-without-capability
+                  - orphan-capability
+          required:
+            - consistent
+            - issues
       required:
         - tier
         - status
         - capabilities
+        - reconciliation
     QualityBreakdown:
       type: object
       properties:
@@ -305,6 +321,56 @@ components:
       required:
         - id
         - capability
+    CreateUserResponse:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            name:
+              type: string
+            role:
+              type: string
+              enum:
+                - INDIVIDUAL
+                - EMPLOYER
+                - RECRUITER
+                - ADMIN
+            status:
+              type: string
+              enum:
+                - active
+                - suspended
+            provider:
+              type: string
+            avatarUrl:
+              type:
+                - string
+                - "null"
+            isApproved:
+              type: boolean
+            isActive:
+              type: boolean
+          required:
+            - id
+            - email
+            - name
+            - role
+            - status
+            - provider
+            - isApproved
+            - isActive
+        accessToken:
+          type: string
+      required:
+        - user
+        - accessToken
     CreateUser:
       type: object
       properties:
@@ -325,6 +391,9 @@ components:
             - EMPLOYER
             - RECRUITER
             - ADMIN
+        phone:
+          type: string
+          pattern: ^\+[1-9]\d{6,14}$
       required:
         - email
         - password
@@ -339,6 +408,32 @@ components:
         firebaseIdToken:
           type: string
           minLength: 1
+    GrantCapabilityResponse:
+      type: object
+      properties:
+        capabilities:
+          type: array
+          items:
+            type: object
+            properties:
+              capability:
+                type: string
+                enum: *a1
+              source:
+                type: string
+                enum: &a2
+                  - subscription
+                  - admin-grant
+              expiresAt:
+                type:
+                  - string
+                  - "null"
+            required:
+              - capability
+              - source
+              - expiresAt
+      required:
+        - capabilities
     GrantCapability:
       type: object
       properties:
@@ -406,6 +501,30 @@ components:
         - name
         - role
         - firebaseToken
+    RevokeCapabilityResponse:
+      type: object
+      properties:
+        capabilities:
+          type: array
+          items:
+            type: object
+            properties:
+              capability:
+                type: string
+                enum: *a1
+              source:
+                type: string
+                enum: *a2
+              expiresAt:
+                type:
+                  - string
+                  - "null"
+            required:
+              - capability
+              - source
+              - expiresAt
+      required:
+        - capabilities
     RoleRequestIdParam:
       type: object
       properties:
@@ -895,7 +1014,7 @@ components:
           default: 20
         quality:
           type: string
-          enum: &a2
+          enum: &a3
             - expertise
             - care
             - delivery
@@ -948,14 +1067,14 @@ components:
           type: array
           items:
             type: string
-            enum: *a2
+            enum: *a3
           minItems: 1
           maxItems: 2
         qualityDisplayOrder:
           type: array
           items:
             type: string
-            enum: *a2
+            enum: *a3
         thumbsUp:
           type: boolean
           enum:
@@ -1017,6 +1136,21 @@ components:
         returnUrl:
           type: string
           format: uri
+    Reconciliation:
+      type: object
+      properties:
+        consistent:
+          type: boolean
+        issues:
+          type: array
+          items:
+            type: string
+            enum:
+              - tier-without-capability
+              - orphan-capability
+      required:
+        - consistent
+        - issues
     Initiate:
       type: object
       properties:
@@ -1364,8 +1498,12 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateUser"
       responses:
-        "200":
+        "201":
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateUserResponse"
         "401":
           description: Unauthorized
           content:
@@ -1640,8 +1778,12 @@ paths:
             schema:
               $ref: "#/components/schemas/GrantCapability"
       responses:
-        "200":
+        "201":
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GrantCapabilityResponse"
         "401":
           description: Unauthorized
           content:
@@ -1686,6 +1828,10 @@ paths:
       responses:
         "200":
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevokeCapabilityResponse"
         "401":
           description: Unauthorized
           content:
@@ -2286,7 +2432,6 @@ paths:
         - bearerAuth: []
       x-middleware:
         - authenticate
-        - role:['INDIVIDUAL']
       responses:
         "200":
           description: OK
@@ -2322,7 +2467,6 @@ paths:
         - bearerAuth: []
       x-middleware:
         - authenticate
-        - role:['INDIVIDUAL']
       requestBody:
         content:
           application/json:
@@ -2360,7 +2504,6 @@ paths:
         - bearerAuth: []
       x-middleware:
         - authenticate
-        - role:['INDIVIDUAL']
       requestBody:
         content:
           application/json:
@@ -2398,7 +2541,6 @@ paths:
         - bearerAuth: []
       x-middleware:
         - authenticate
-        - role:['INDIVIDUAL']
       responses:
         "200":
           description: OK
@@ -2431,7 +2573,6 @@ paths:
         - bearerAuth: []
       x-middleware:
         - authenticate
-        - role:['INDIVIDUAL']
       responses:
         "200":
           description: OK

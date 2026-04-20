@@ -23,3 +23,8 @@ export const cancelSchema = z.object({
 export const createPortalSchema = z.object({
   returnUrl: z.string().url().optional(),
 });
+
+export const reconciliationSchema = z.object({
+  consistent: z.boolean(),
+  issues: z.array(z.enum(['tier-without-capability', 'orphan-capability'])),
+});
