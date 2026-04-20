@@ -54,7 +54,6 @@ Key tasks:
 - `dev:vault:pull [-- --force]` — fetch GCP vault files to `infra/dev/vault/` (new-machine bootstrap)
 - `dev:mobile:config` — render `apps/mobile/{eas,app}.json` from templates
 - `dev:deploy:mobile` — Android AAB → Play internal (uses `--local`). **Local builds often fail on this machine** (package.json / git-root resolution). Prefer the GitHub workflow — see below.
-- `dev:deploy:mobile:preview` — Android APK for tester sideload
 - `dev:deploy:mobile:ios` — iOS IPA → TestFlight
 
 **"Publish mobile" / "publish the mobile app" = dispatch the `deploy-mobile` GitHub workflow. Do not ask for confirmation, do not try `task dev:deploy:mobile` locally first.** Run:
@@ -63,7 +62,7 @@ Key tasks:
 gh workflow run deploy-mobile.yml -f profile=production -f submit=true -f confirm=deploy-mobile
 ```
 
-Profile options: `production` (AAB → Play Internal), `preview` (APK artifact for sideload), `ios` (IPA → TestFlight). `submit=false` builds only. `confirm=deploy-mobile` is the workflow's dead-man switch — always pass it verbatim.
+Profile options: `production` (AAB → Play Internal), `ios` (IPA → TestFlight). `submit=false` builds only. `confirm=deploy-mobile` is the workflow's dead-man switch — always pass it verbatim.
 
 **Test** (Testcontainers Postgres on `:10532`, `.env.test`):
 - `test:integration` — full integration run (db:reset + vitest + teardown)
