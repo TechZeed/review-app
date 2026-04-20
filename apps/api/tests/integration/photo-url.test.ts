@@ -63,9 +63,11 @@ describe("Spec 25 — photoUrl on profile + scan", () => {
     it("does not 403 for authenticated non-INDIVIDUAL roles (spec 49)", async () => {
       const roleLogins = [
         { email: "employer@test.local", password: "Test_Employer_Pass_007", expectedStatus: 200 },
+        // In deterministic integration fixtures, recruiter/admin users have no
+        // profile rows seeded, so service-level lookup returns PROFILE_NOT_FOUND.
         { email: "recruiter@test.local", password: "Test_Recruiter_Pass_007", expectedStatus: 404 },
         { email: "admin@test.local", password: "Test_Admin_Pass_007", expectedStatus: 404 },
-      ] as const;
+      ];
 
       for (const roleLogin of roleLogins) {
         const token = await loginAs(roleLogin.email, roleLogin.password);
@@ -74,7 +76,6 @@ describe("Spec 25 — photoUrl on profile + scan", () => {
           .set("Authorization", `Bearer ${token}`);
 
         expect(me.status, `${roleLogin.email} should not be blocked by role gate`).toBe(roleLogin.expectedStatus);
-        expect(me.status, `${roleLogin.email} should not receive RBAC 403`).not.toBe(403);
       }
     });
   });
