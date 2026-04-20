@@ -15,6 +15,6 @@ appId: sg.reviewapp.app
 - tapOn: "Password"
 - inputText: "Demo123"
 - tapOn: "Sign in"
-- assertVisible:
-    text: "Ramesh"
+- extendedWaitUntil:
+    visible: "Ramesh"
     timeout: 15000

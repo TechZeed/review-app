@@ -8,8 +8,8 @@ appId: sg.reviewapp.app
 ---
 - launchApp
 - tapOn: "Reviews"
-- assertVisible:
-    text: "expertise"
+- extendedWaitUntil:
+    visible: "expertise"
     timeout: 10000
 - scrollUntilVisible:
     element:

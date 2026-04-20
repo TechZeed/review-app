@@ -9,6 +9,6 @@ appId: sg.reviewapp.app
 - tapOn: "Home"
 - assertVisible: "Ramesh"
 - assertVisible: "Senior Sales Consultant"
-- assertVisible:
-    text: "150"
+- extendedWaitUntil:
+    visible: "150"
     timeout: 5000
