@@ -24,9 +24,15 @@ test.describe("dashboard quality heatmap (spec PRD-02)", () => {
   test("ramesh's heatmap renders 5 qualities with percentages matching API", async ({ page }) => {
     const { accessToken } = await primeDashboardSession(page, "ramesh@reviewapp.demo");
 
-    // Heat map container: role=img + aria-label "Expertise: X%, ..."
-    const heatmap = page.getByRole("img", { name: /expertise.*care.*delivery.*initiative.*trust/i });
-    await expect(heatmap).toBeVisible({ timeout: 10_000 });
+    // Heat map container: role=img + aria-label like "Expertise: X%, Care:
+    // Y%, ..." — the component sorts rows by percentage DESC so the name
+    // order in the label is data-dependent. Anchor on "Expertise: <n>%"
+    // (always present) and let the per-row assertions below verify the
+    // other four qualities are rendered.
+    const heatmap = page.getByRole("img", {
+      name: /Expertise:\s*\d+%/i,
+    });
+    await expect(heatmap.first()).toBeVisible({ timeout: 10_000 });
 
     // All five quality names visible.
     for (const name of ["Expertise", "Care", "Delivery", "Initiative", "Trust"]) {
