@@ -2,7 +2,7 @@
 
 **Project:** ReviewApp
 **Repo:** TechZeed/review-app
-**Date:** 2026-04-16 (rewritten 2026-04-18 — manual-only + mobile CI pipeline; amended 2026-04-19 — versionCode bump, iOS status, internal-only guardrail; amended 2026-04-19 — Play Console status CLI cross-ref, see spec 29)
+**Date:** 2026-04-16 (rewritten 2026-04-18 — manual-only + mobile CI pipeline; amended 2026-04-19 — versionCode bump, iOS status, internal-only guardrail; amended 2026-04-19 — Play Console status CLI cross-ref, see spec 29; amended 2026-04-20 — releaseStatus flipped to `completed` for Internal track auto-rollout)
 
 ---
 
@@ -68,9 +68,26 @@ task dev:play:status -- --track=internal
 
 Prints the app's store-listing state and every release on the selected track (versionCode, status: `completed` / `draft` / `inProgress` / `halted`, release notes, rollout %). Uses the same `eas-submit-sa.json` this workflow already decodes for `eas submit` — no new credentials. See spec 29 for the full API surface and follow-ups.
 
+### Versioning contract
+
+Two fields on `apps/mobile/app.json` that Play cares about:
+
+- `expo.android.versionCode` — integer, strictly monotonic per submit. Play rejects re-submits of the same code ("You've already submitted this version"). **Rewritten at runtime** by the jq step above to `100 + GITHUB_RUN_NUMBER`. Never committed.
+- `expo.version` — the marketing string (`"1.0.0"`). Shown to testers/users. Currently fixed; bump by hand in a PR when user-visible behavior changes enough to warrant it. Semver is fine; we're not pinned to one convention yet.
+
+The repo does **not** use EAS remote appVersionSource (`appVersionSource: remote` + `autoIncrement: true`). Spec 17 amendment 2026-04-19 documents why: `eas build --local` silently skips the server-side increment, causing duplicate-version submits. Our jq-based local bump is the workaround.
+
+iOS has a parallel concept (`expo.ios.buildNumber`). Not CI-bumped yet because the iOS pipeline is still in the first-run-cert bootstrap stage (this spec §iOS path below). When we wire it, use the same `100 + GITHUB_RUN_NUMBER` trick for parity.
+
 ### Internal-testers-only guardrail
 
-The Android submit config is `track: internal` + `releaseStatus: draft` (`apps/mobile/eas.json`). This is **load-bearing** — flipping either to `production` / `completed` would push the same AAB to the public Play Store. Do not edit these without a separate spec update; internal testers (Play Console → Internal testing → Testers) are the only distribution surface today.
+The Android submit config is `track: internal` + `releaseStatus: completed` (`apps/mobile/eas.json`).
+
+**`track: internal` is the safety gate** — it's what keeps every CI build from reaching the public Play Store. Only testers added to Play Console → Internal testing → Testers see these builds, and only via the opt-in URL (not public Play Store browse). **Flipping `track` to `production` would be catastrophic** — don't do that without a separate spec.
+
+**`releaseStatus: completed`** (changed 2026-04-20, was `draft`) — every CI submit auto-rolls out to Internal testers immediately, no manual "Send for review / Release" click in Play Console. Safe because the Internal track is tester-gated regardless of release status. Previously we had `draft`, which caused every CI build to sit unreleased until someone manually promoted it — testers kept seeing the stale `versionCode=13` manual-upload baseline while new CI versions piled up as drafts.
+
+If you ever need to review before releasing, temporarily flip back to `"draft"`, run the deploy, promote via Play Console UI, and flip back.
 
 The "always capture" on step 7 matters: when Play submit fails (e.g. service account missing app access) the AAB is still downloadable from the run's artifacts and Release — you don't have to rebuild.
 
