@@ -1,5 +1,6 @@
 import { apiUrl } from "./env";
 import { getToken } from "./storage";
+import type { components } from "../src/api-types";
 
 interface ApiFetchOptions extends RequestInit {
   // Callers may override the auth token; default is whatever is in SecureStore.
@@ -58,17 +59,8 @@ export async function apiFetch<T>(
 
 // ---- Typed shapes (client-side assumption; verified against real API) ----
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-}
-
-export interface ExchangeTokenResponse {
-  accessToken: string;
-  user: AuthUser;
-}
+export type ExchangeTokenResponse = components["schemas"]["ExchangeTokenResponse"];
+export type AuthUser = components["schemas"]["AuthUser"];
 
 // Spec 21's assumed shape; `qualityBreakdown` is missing from /me today
 // (see spec 19 B4) so it's optional and we merge from /profiles/:slug.
