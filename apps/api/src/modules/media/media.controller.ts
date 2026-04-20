@@ -7,10 +7,7 @@ export class MediaController {
   private service: MediaService;
 
   constructor() {
-    // In production, pass actual Sequelize model:
-    //   import { ReviewMedia } from './media.model.js';
-    //   new MediaRepository(ReviewMedia)
-    this.service = new MediaService(new MediaRepository(null as any));
+    this.service = new MediaService(new MediaRepository());
   }
 
   upload = async (req: Request, res: Response, next: NextFunction) => {
@@ -59,6 +56,26 @@ export class MediaController {
             new Error(`Invalid media type: ${mediaType}`),
           );
       }
+
+      res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  uploadForReview = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { reviewToken, type, content } = req.body;
+      if (type !== MediaType.TEXT) {
+        return next(new Error(`Invalid media type: ${type}`));
+      }
+
+      const result = await this.service.uploadText({
+        reviewToken,
+        reviewId: req.params.reviewId as string,
+        mediaType: MediaType.TEXT,
+        textContent: String(content),
+      });
 
       res.status(201).json(result);
     } catch (error) {

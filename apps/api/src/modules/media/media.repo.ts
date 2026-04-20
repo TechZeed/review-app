@@ -1,11 +1,9 @@
 import { BaseRepo } from '../../shared/db/base.repo.js';
-
-// Model type placeholder — will be the Sequelize ReviewMedia model
-type ReviewMedia = any;
+import { ReviewMedia } from './media.model.js';
 
 export class MediaRepository extends BaseRepo<ReviewMedia> {
-  constructor(model: any) {
-    super(model);
+  constructor() {
+    super(ReviewMedia);
   }
 
   async findByReviewId(reviewId: string): Promise<ReviewMedia | null> {

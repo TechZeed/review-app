@@ -194,7 +194,13 @@ export default function ReviewPage() {
 
   // Media prompt step
   if (step === "media") {
-    return <MediaPrompt reviewId={reviewId} onDone={() => setStep("thankyou")} />;
+    return (
+      <MediaPrompt
+        reviewId={reviewId}
+        reviewToken={reviewToken}
+        onDone={() => setStep("thankyou")}
+      />
+    );
   }
 
   // OTP step (modal overlay on landing)
