@@ -19,3 +19,8 @@ export const createCheckoutSchema = z.object({
 export const cancelSchema = z.object({
   immediate: z.boolean().default(false),
 });
+
+export const reconciliationSchema = z.object({
+  consistent: z.boolean(),
+  issues: z.array(z.enum(['tier-without-capability', 'orphan-capability'])),
+});

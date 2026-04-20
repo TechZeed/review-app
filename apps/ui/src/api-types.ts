@@ -3521,6 +3521,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reviews/{reviewId}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** POST /api/v1/reviews/{reviewId}/media */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    reviewId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["ReviewMediaText"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Rate-limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reviews/my-submissions": {
         parameters: {
             query?: never;
@@ -4340,6 +4414,10 @@ export interface components {
             cancelAtPeriodEnd?: boolean;
             stripeSubscriptionId?: string | null;
             capabilities: components["schemas"]["Capability"][];
+            reconciliation: {
+                consistent: boolean;
+                issues: ("tier-without-capability" | "orphan-capability")[];
+            };
         };
         QualityBreakdown: {
             expertise: number;
@@ -4500,6 +4578,17 @@ export interface components {
         MediaIdParam: {
             /** Format: uuid */
             mediaId: string;
+        };
+        ReviewMediaParam: {
+            /** Format: uuid */
+            reviewId: string;
+        };
+        ReviewMediaText: {
+            /** Format: uuid */
+            reviewToken: string;
+            /** @enum {string} */
+            type: "text";
+            content: string;
         };
         UploadMedia: {
             /** Format: uuid */
@@ -4679,6 +4768,10 @@ export interface components {
             cancelUrl: string;
             locationCount?: number;
             seatCount?: number;
+        };
+        Reconciliation: {
+            consistent: boolean;
+            issues: ("tier-without-capability" | "orphan-capability")[];
         };
         Initiate: {
             slug: string;
