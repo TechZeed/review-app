@@ -119,7 +119,9 @@ describe('GET /api/v1/subscriptions/me reconciliation self-heal', () => {
     expect(healedRows[0]?.source).toBe('subscription');
     expect(healedRows[0]?.subscription_id).toBe(SUB_ID);
     expect(healedRows[0]?.expires_at).toBeTruthy();
-    expect(new Date(healedRows[0]!.expires_at as string).getTime()).toBeGreaterThan(Date.now());
+    const healedExpiry = new Date(healedRows[0]!.expires_at as string);
+    expect(healedExpiry.getTime()).toBeGreaterThan(now.getTime());
+    expect(healedExpiry.toISOString()).toBe(periodEnd.toISOString());
 
     const meAfterHeal = await request(app)
       .get('/api/v1/subscriptions/me')
