@@ -525,6 +525,29 @@ export const up: Migration = async ({ context: sequelize }) => {
   await queryInterface.bulkInsert("subscriptions", subsData);
   console.log(`Created ${subsData.length} subscriptions`);
 
+  // Spec 28 — seed user_capabilities rows alongside active paid subscriptions.
+  // Mirrors subscription.service.ts activation path (capability = tier). Without
+  // this, UI capability gates (NavBar, page guards) hide paid features from
+  // seeded demo users since webhooks don't run against seed data.
+  const capsData = subsData
+    .filter((s) => s.status === "active" && s.tier && s.tier !== "free")
+    .map((s) => ({
+      id: faker.string.uuid(),
+      user_id: s.user_id,
+      capability: s.tier,
+      source: "subscription",
+      subscription_id: s.id,
+      granted_at: s.created_at,
+      expires_at: null,
+      metadata: null,
+      created_at: s.created_at,
+      updated_at: now,
+    }));
+  if (capsData.length > 0) {
+    await queryInterface.bulkInsert("user_capabilities", capsData);
+    console.log(`Created ${capsData.length} user capabilities`);
+  }
+
   // -------------------------------------------------------
   // Summary
   // -------------------------------------------------------
@@ -560,6 +583,7 @@ export const down: Migration = async ({ context: sequelize }) => {
   await queryInterface.bulkDelete("verifiable_references", {});
   await queryInterface.bulkDelete("review_media", {});
   await queryInterface.bulkDelete("reviews", {});
+  await queryInterface.bulkDelete("user_capabilities", {});
   await queryInterface.bulkDelete("subscriptions", {});
   await queryInterface.bulkDelete("profile_organizations", {});
   await queryInterface.bulkDelete("profiles", {});

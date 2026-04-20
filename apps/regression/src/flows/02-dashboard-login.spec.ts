@@ -16,6 +16,13 @@ test.describe("dashboard login (browser)", () => {
     await expect(page.getByTestId("nav-bar")).toBeVisible();
     await expect(page.getByRole("button", { name: /sign out/i })).toBeVisible();
 
+    // Public Profile link must resolve to the user's slug, not an empty
+    // /profile/ path (regression: LoginPage previously hardcoded profile_slug='').
+    const publicLink = page.getByTestId("nav-bar").getByRole("link", { name: /public profile|^profile$/i });
+    await expect(publicLink).toBeVisible();
+    const href = await publicLink.getAttribute("href");
+    expect(href, "Public Profile href must include a slug").toMatch(/\/profile\/ramesh-kumar$/);
+
     // At least one review card in the recent-reviews feed. Ramesh is
     // seeded with 150 reviews; UI paginates but the first page always
     // has ≥1.
