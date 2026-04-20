@@ -66,7 +66,7 @@ export interface AuthUser {
 }
 
 export interface ExchangeTokenResponse {
-  token: string;
+  accessToken: string;
   user: AuthUser;
 }
 

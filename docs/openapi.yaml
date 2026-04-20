@@ -1,0 +1,3261 @@
+# ReviewApp OpenAPI — auto-generated, do not hand-edit.
+# Regenerate: task dev:openapi:regen
+# Generated: 2026-04-20T08:40:59.236Z
+
+openapi: 3.1.0
+info:
+  title: ReviewApp API
+  version: 0.1.0
+  description: Auto-generated from Express route tables + Zod validation schemas. Do not hand-edit — regenerate via `task dev:openapi:regen`.
+servers:
+  - url: https://review-api.teczeed.com
+    description: Dev
+components:
+  schemas:
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          type: string
+          enum:
+            - INDIVIDUAL
+            - EMPLOYER
+            - RECRUITER
+            - ADMIN
+        status:
+          type: string
+          enum:
+            - active
+            - suspended
+        provider:
+          type: string
+        avatarUrl:
+          type:
+            - string
+            - "null"
+        isApproved:
+          type: boolean
+        isActive:
+          type: boolean
+      required:
+        - id
+        - email
+        - name
+        - role
+    ExchangeTokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        user:
+          $ref: "#/components/schemas/AuthUser"
+      required:
+        - accessToken
+        - user
+    Capability:
+      type: object
+      properties:
+        capability:
+          type: string
+          enum:
+            - pro
+            - employer
+            - recruiter
+        source:
+          type: string
+          enum:
+            - subscription
+            - admin-grant
+        expiresAt:
+          type:
+            - string
+            - "null"
+      required:
+        - capability
+        - source
+        - expiresAt
+    SubscriptionMe:
+      type: object
+      properties:
+        tier:
+          type: string
+          enum:
+            - free
+            - pro
+            - employer
+            - recruiter
+        status:
+          type: string
+        billingCycle:
+          type:
+            - string
+            - "null"
+        currentPeriodEnd:
+          type:
+            - string
+            - "null"
+        cancelAtPeriodEnd:
+          type: boolean
+        stripeSubscriptionId:
+          type:
+            - string
+            - "null"
+        capabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Capability"
+      required:
+        - tier
+        - status
+        - capabilities
+    QualityBreakdown:
+      type: object
+      properties:
+        expertise:
+          type: integer
+        care:
+          type: integer
+        delivery:
+          type: integer
+        initiative:
+          type: integer
+        trust:
+          type: integer
+      required:
+        - expertise
+        - care
+        - delivery
+        - initiative
+        - trust
+    Profile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        headline:
+          type: string
+        industry:
+          type: string
+        bio:
+          type:
+            - string
+            - "null"
+        visibility:
+          type: string
+          enum:
+            - public
+            - recruiter_visible
+            - private
+        qrCodeUrl:
+          type:
+            - string
+            - "null"
+        profileUrl:
+          type: string
+          format: uri
+        reviewCount:
+          type: integer
+          minimum: 0
+        qualityBreakdown:
+          $ref: "#/components/schemas/QualityBreakdown"
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - slug
+        - name
+        - headline
+        - industry
+        - bio
+        - visibility
+        - qrCodeUrl
+        - profileUrl
+        - reviewCount
+        - qualityBreakdown
+        - createdAt
+        - updatedAt
+    Review:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        profileId:
+          type: string
+          format: uuid
+        qualities:
+          type: array
+          items:
+            type: string
+        thumbsUp:
+          type: boolean
+        badgeTier:
+          type: string
+          enum:
+            - standard
+            - verified_interaction
+            - verified_testimonial
+        verifiable:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - profileId
+        - qualities
+        - thumbsUp
+        - badgeTier
+        - verifiable
+        - createdAt
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+    ReviewsPage:
+      type: object
+      properties:
+        reviews:
+          type: array
+          items:
+            $ref: "#/components/schemas/Review"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+      required:
+        - reviews
+        - pagination
+    ScanResponse:
+      type: object
+      properties:
+        reviewToken:
+          type: string
+          format: uuid
+        expiresAt:
+          type: string
+        profile:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+          required:
+            - id
+            - name
+      required:
+        - reviewToken
+        - expiresAt
+        - profile
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        traceId:
+          type: string
+        requiredCapability:
+          type: string
+      required:
+        - error
+    CapabilityParam:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        capability:
+          type: string
+          enum: &a1
+            - pro
+            - employer
+            - recruiter
+      required:
+        - id
+        - capability
+    CreateUser:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        role:
+          type: string
+          enum:
+            - INDIVIDUAL
+            - EMPLOYER
+            - RECRUITER
+            - ADMIN
+      required:
+        - email
+        - password
+        - name
+        - role
+    ExchangeFirebaseToken:
+      type: object
+      properties:
+        firebaseToken:
+          type: string
+          minLength: 1
+        firebaseIdToken:
+          type: string
+          minLength: 1
+    GrantCapability:
+      type: object
+      properties:
+        capability:
+          type: string
+          enum: *a1
+        expiresAt:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          maxLength: 500
+      required:
+        - capability
+    Login:
+      type: object
+      properties:
+        firebaseToken:
+          type: string
+          minLength: 1
+      required:
+        - firebaseToken
+    PasswordLogin:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+      required:
+        - email
+        - password
+    Register:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        role:
+          type: string
+          enum:
+            - individual
+            - recruiter
+            - employer
+        phone:
+          type: string
+          pattern: ^\+[1-9]\d{6,14}$
+        firebaseToken:
+          type: string
+          minLength: 1
+        industry:
+          type: string
+          maxLength: 100
+        organizationName:
+          type: string
+          maxLength: 200
+      required:
+        - email
+        - name
+        - role
+        - firebaseToken
+    RoleRequestIdParam:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+      required:
+        - id
+    RoleRequest:
+      type: object
+      properties:
+        requestedRole:
+          type: string
+          enum:
+            - EMPLOYER
+            - RECRUITER
+        companyName:
+          type: string
+          minLength: 1
+          maxLength: 255
+        companyWebsite:
+          type: string
+          minLength: 1
+          maxLength: 255
+        reason:
+          type: string
+          minLength: 10
+      required:
+        - requestedRole
+        - companyName
+        - companyWebsite
+        - reason
+    UpdateRole:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+            - INDIVIDUAL
+            - EMPLOYER
+            - RECRUITER
+            - ADMIN
+      required:
+        - role
+    UpdateStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - active
+            - suspended
+      required:
+        - status
+    UserIdParam:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+      required:
+        - id
+    DashboardQuery:
+      type: object
+      properties:
+        period:
+          type: integer
+          minimum: 7
+          maximum: 365
+          default: 30
+        groupBy:
+          type: string
+          enum:
+            - location
+    ProfileIdParam:
+      type: object
+      properties:
+        profileId:
+          type: string
+          format: uuid
+      required:
+        - profileId
+    TeamQuery:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          default: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        sortBy:
+          type: string
+          enum:
+            - compositeScore
+            - totalReviews
+            - displayName
+          default: compositeScore
+        order:
+          type: string
+          enum:
+            - asc
+            - desc
+          default: desc
+    MediaIdParam:
+      type: object
+      properties:
+        mediaId:
+          type: string
+          format: uuid
+      required:
+        - mediaId
+    UploadMedia:
+      type: object
+      properties:
+        reviewToken:
+          type: string
+          format: uuid
+        reviewId:
+          type: string
+          format: uuid
+        mediaType:
+          type: string
+          enum:
+            - text
+            - voice
+            - video
+        textContent:
+          type: string
+          maxLength: 280
+      required:
+        - reviewToken
+        - reviewId
+        - mediaType
+    UploadText:
+      type: object
+      properties:
+        reviewToken:
+          type: string
+          format: uuid
+        reviewId:
+          type: string
+          format: uuid
+        mediaType:
+          type: string
+          enum:
+            - text
+        textContent:
+          type: string
+          minLength: 1
+          maxLength: 280
+      required:
+        - reviewToken
+        - reviewId
+        - mediaType
+        - textContent
+    CreateOrg:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 200
+        industry:
+          type: string
+          maxLength: 100
+        website:
+          type: string
+          format: uri
+        location:
+          type: object
+          properties:
+            city:
+              type: string
+              maxLength: 100
+            state:
+              type: string
+              maxLength: 100
+            country:
+              type: string
+              minLength: 2
+              maxLength: 2
+          required:
+            - city
+            - country
+        size:
+          type: string
+          enum:
+            - 1-25
+            - 26-100
+            - 101-500
+            - 500+
+      required:
+        - name
+        - industry
+        - location
+    OrgIdParam:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+      required:
+        - id
+    ProfileOrgIdParam:
+      type: object
+      properties:
+        profileOrgId:
+          type: string
+          format: uuid
+      required:
+        - profileOrgId
+    Tag:
+      type: object
+      properties:
+        profileId:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        role:
+          type: string
+          maxLength: 100
+      required:
+        - role
+    CreateProfile:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        photo:
+          type: string
+          format: uri
+        industry:
+          type: string
+          maxLength: 100
+        role:
+          type: string
+          maxLength: 100
+        bio:
+          type: string
+          maxLength: 500
+        visibility:
+          type: string
+          enum:
+            - private
+            - employer
+            - recruiter
+            - public
+          default: private
+      required:
+        - name
+    QrQuery:
+      type: object
+      properties:
+        format:
+          type: string
+          enum:
+            - png
+            - svg
+          default: png
+        size:
+          type: number
+          minimum: 200
+          maximum: 1200
+          default: 300
+    SlugParam:
+      type: object
+      properties:
+        slug:
+          type: string
+          minLength: 4
+          maxLength: 50
+          pattern: ^[a-z0-9-]+$
+      required:
+        - slug
+    StatsQuery:
+      type: object
+      properties:
+        period:
+          type: string
+          enum:
+            - 7d
+            - 30d
+            - 90d
+            - 12m
+            - all
+          default: all
+    UpdateProfile:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        headline:
+          type: string
+          minLength: 1
+          maxLength: 200
+        photo:
+          type: string
+          format: uri
+        industry:
+          type: string
+          maxLength: 100
+        role:
+          type: string
+          maxLength: 100
+        bio:
+          type: string
+          maxLength: 500
+    Visibility:
+      type: object
+      properties:
+        visibility:
+          type: string
+          enum:
+            - private
+            - employer
+            - recruiter
+            - public
+      required:
+        - visibility
+    QualityPicks:
+      type: object
+      properties:
+        qualities:
+          type: array
+          items:
+            type: string
+            enum:
+              - expertise
+              - care
+              - delivery
+              - initiative
+              - trust
+          minItems: 1
+          maxItems: 2
+      required:
+        - qualities
+    ContactRequest:
+      type: object
+      properties:
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 200
+        message:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        hiringRole:
+          type: string
+          minLength: 1
+          maxLength: 200
+        companyName:
+          type: string
+          minLength: 1
+          maxLength: 200
+      required:
+        - subject
+        - message
+        - hiringRole
+        - companyName
+    Search:
+      type: object
+      properties:
+        query:
+          type: string
+          maxLength: 200
+        industries:
+          type: array
+          items:
+            type: string
+            maxLength: 100
+        location:
+          type: string
+          maxLength: 200
+        qualities:
+          type: array
+          items:
+            type: object
+            properties:
+              quality:
+                type: string
+                enum:
+                  - expertise
+                  - care
+                  - delivery
+                  - initiative
+                  - trust
+              minPercentage:
+                type: number
+                minimum: 0
+                maximum: 100
+            required:
+              - quality
+              - minPercentage
+        minReviewCount:
+          type:
+            - integer
+            - "null"
+          minimum: 0
+        activeInLastMonths:
+          type: integer
+          minimum: 1
+          maximum: 24
+        minVerifiedRate:
+          type:
+            - number
+            - "null"
+          minimum: 0
+          maximum: 100
+        hasVideo:
+          type: boolean
+        cursor:
+          type: string
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+    OptIn:
+      type: object
+      properties:
+        reviewId:
+          type: string
+          format: uuid
+        reviewerPhoneHash:
+          type: string
+          minLength: 64
+          maxLength: 128
+      required:
+        - reviewId
+        - reviewerPhoneHash
+    ReferenceIdParam:
+      type: object
+      properties:
+        referenceId:
+          type: string
+          format: uuid
+      required:
+        - referenceId
+    ReviewsQuery:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          default: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+        quality:
+          type: string
+          enum: &a2
+            - expertise
+            - care
+            - delivery
+            - initiative
+            - trust
+        mediaType:
+          type: string
+          enum:
+            - text
+            - voice
+            - video
+        badgeTier:
+          type: string
+          enum:
+            - basic
+            - verified
+            - verified_interaction
+            - verified_testimonial
+        sortBy:
+          type: string
+          enum:
+            - recent
+            - badgeTier
+          default: recent
+    Scan:
+      type: object
+      properties:
+        deviceFingerprint:
+          type: string
+          minLength: 16
+          maxLength: 128
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+        userAgent:
+          type: string
+          maxLength: 500
+    SubmitReview:
+      type: object
+      properties:
+        reviewToken:
+          type: string
+          format: uuid
+        qualities:
+          type: array
+          items:
+            type: string
+            enum: *a2
+          minItems: 1
+          maxItems: 2
+        qualityDisplayOrder:
+          type: array
+          items:
+            type: string
+            enum: *a2
+        thumbsUp:
+          type: boolean
+          enum:
+            - true
+        phoneHash:
+          type: string
+          minLength: 16
+        optInVerifiable:
+          type: boolean
+          default: false
+      required:
+        - reviewToken
+        - qualities
+        - qualityDisplayOrder
+        - thumbsUp
+    Cancel:
+      type: object
+      properties:
+        immediate:
+          type: boolean
+          default: false
+    CreateCheckout:
+      type: object
+      properties:
+        tier:
+          type: string
+          enum:
+            - pro_individual
+            - employer_small
+            - employer_medium
+            - employer_large
+            - recruiter_basic
+            - recruiter_premium
+        billingCycle:
+          type: string
+          enum:
+            - monthly
+            - annual
+          default: monthly
+        successUrl:
+          type: string
+          format: uri
+        cancelUrl:
+          type: string
+          format: uri
+        locationCount:
+          type: integer
+          minimum: 1
+        seatCount:
+          type: integer
+          minimum: 1
+      required:
+        - tier
+        - successUrl
+        - cancelUrl
+    Initiate:
+      type: object
+      properties:
+        slug:
+          type: string
+          minLength: 4
+          maxLength: 50
+        deviceFingerprint:
+          type: string
+          minLength: 16
+          maxLength: 128
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+        gpsAccuracyMeters:
+          type: number
+          minimum: 0
+        userAgent:
+          type: string
+          maxLength: 500
+      required:
+        - slug
+        - deviceFingerprint
+    SendOtp:
+      type: object
+      properties:
+        reviewToken:
+          type: string
+          format: uuid
+        phone:
+          type: string
+          pattern: ^\+[1-9]\d{6,14}$
+        channel:
+          type: string
+          enum:
+            - sms
+            - whatsapp
+          default: sms
+      required:
+        - reviewToken
+        - phone
+    TokenIdParam:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          format: uuid
+      required:
+        - tokenId
+    ValidateToken:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          format: uuid
+      required:
+        - tokenId
+    VerifyOtp:
+      type: object
+      properties:
+        reviewToken:
+          type: string
+          format: uuid
+        phone:
+          type: string
+          pattern: ^\+[1-9]\d{6,14}$
+        otp:
+          type: string
+          minLength: 6
+          maxLength: 6
+          pattern: ^\d{6}$
+      required:
+        - reviewToken
+        - phone
+        - otp
+  parameters: {}
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+paths:
+  /api/v1/auth/register:
+    post:
+      tags:
+        - auth
+      summary: POST /api/v1/auth/register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Register"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/exchange-token:
+    post:
+      tags:
+        - auth
+      summary: POST /api/v1/auth/exchange-token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExchangeFirebaseToken"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeTokenResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/login:
+    post:
+      tags:
+        - auth
+      summary: POST /api/v1/auth/login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordLogin"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeTokenResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/me:
+    get:
+      tags:
+        - auth
+      summary: GET /api/v1/auth/me
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - auth
+      summary: POST /api/v1/auth/logout
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/role-request:
+    post:
+      tags:
+        - auth
+      summary: POST /api/v1/auth/role-request
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleRequest"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/role-request/me:
+    get:
+      tags:
+        - auth
+      summary: GET /api/v1/auth/role-request/me
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/admin/create-user:
+    post:
+      tags:
+        - auth
+      summary: POST /api/v1/auth/admin/create-user
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:ADMIN_ROLES
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUser"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/admin/role-requests:
+    get:
+      tags:
+        - auth
+      summary: GET /api/v1/auth/admin/role-requests
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:ADMIN_ROLES
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/admin/role-requests/{id}/approve:
+    post:
+      tags:
+        - auth
+      summary: POST /api/v1/auth/admin/role-requests/{id}/approve
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:ADMIN_ROLES
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: id
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/admin/role-requests/{id}/reject:
+    post:
+      tags:
+        - auth
+      summary: POST /api/v1/auth/admin/role-requests/{id}/reject
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:ADMIN_ROLES
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: id
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/admin/users:
+    get:
+      tags:
+        - auth
+      summary: GET /api/v1/auth/admin/users
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:ADMIN_ROLES
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/admin/users/{id}/role:
+    patch:
+      tags:
+        - auth
+      summary: PATCH /api/v1/auth/admin/users/{id}/role
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:ADMIN_ROLES
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: id
+          in: path
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRole"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/admin/users/{id}/status:
+    patch:
+      tags:
+        - auth
+      summary: PATCH /api/v1/auth/admin/users/{id}/status
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:ADMIN_ROLES
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: id
+          in: path
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStatus"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/admin/users/{id}/capabilities:
+    post:
+      tags:
+        - auth
+      summary: POST /api/v1/auth/admin/users/{id}/capabilities
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:ADMIN_ROLES
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: id
+          in: path
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GrantCapability"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/auth/admin/users/{id}/capabilities/{capability}:
+    delete:
+      tags:
+        - auth
+      summary: DELETE /api/v1/auth/admin/users/{id}/capabilities/{capability}
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:ADMIN_ROLES
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: id
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: capability
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/employer/dashboard:
+    get:
+      tags:
+        - employer
+      summary: GET /api/v1/employer/dashboard
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - capability:employer
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/employer/team:
+    get:
+      tags:
+        - employer
+      summary: GET /api/v1/employer/team
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - capability:employer
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/employer/team/top:
+    get:
+      tags:
+        - employer
+      summary: GET /api/v1/employer/team/top
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - capability:employer
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/employer/team/retention:
+    get:
+      tags:
+        - employer
+      summary: GET /api/v1/employer/team/retention
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - capability:employer
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/employer/team/{profileId}:
+    get:
+      tags:
+        - employer
+      summary: GET /api/v1/employer/team/{profileId}
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - capability:employer
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: profileId
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/media/upload:
+    post:
+      tags:
+        - media
+      summary: POST /api/v1/media/upload
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadMedia"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/media/{mediaId}:
+    get:
+      tags:
+        - media
+      summary: GET /api/v1/media/{mediaId}
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: mediaId
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/media/{mediaId}/signed-url:
+    get:
+      tags:
+        - media
+      summary: GET /api/v1/media/{mediaId}/signed-url
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: mediaId
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/organizations/:
+    post:
+      tags:
+        - organization
+      summary: POST /api/v1/organizations/
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - capability:employer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrg"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/organizations/tag:
+    post:
+      tags:
+        - organization
+      summary: POST /api/v1/organizations/tag
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Tag"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/organizations/untag/{profileOrgId}:
+    delete:
+      tags:
+        - organization
+      summary: DELETE /api/v1/organizations/untag/{profileOrgId}
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: profileOrgId
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/organizations/profile/{profileId}:
+    get:
+      tags:
+        - organization
+      summary: GET /api/v1/organizations/profile/{profileId}
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: profileId
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/organizations/me/team:
+    get:
+      tags:
+        - organization
+      summary: GET /api/v1/organizations/me/team
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:['EMPLOYER']
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/organizations/{id}/members:
+    get:
+      tags:
+        - organization
+      summary: GET /api/v1/organizations/{id}/members
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - capability:employer
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: id
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/organizations/{id}:
+    get:
+      tags:
+        - organization
+      summary: GET /api/v1/organizations/{id}
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: id
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/profiles/:
+    post:
+      tags:
+        - profile
+      summary: POST /api/v1/profiles/
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:['INDIVIDUAL']
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProfile"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/profiles/me:
+    get:
+      tags:
+        - profile
+      summary: GET /api/v1/profiles/me
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:['INDIVIDUAL']
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      tags:
+        - profile
+      summary: PUT /api/v1/profiles/me
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:['INDIVIDUAL']
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfile"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/profiles/me/visibility:
+    patch:
+      tags:
+        - profile
+      summary: PATCH /api/v1/profiles/me/visibility
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:['INDIVIDUAL']
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Visibility"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/profiles/me/qr:
+    get:
+      tags:
+        - profile
+      summary: GET /api/v1/profiles/me/qr
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:['INDIVIDUAL']
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/profiles/me/stats:
+    get:
+      tags:
+        - profile
+      summary: GET /api/v1/profiles/me/stats
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:['INDIVIDUAL']
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/profiles/{slug}:
+    get:
+      tags:
+        - profile
+      summary: GET /api/v1/profiles/{slug}
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: slug
+          in: path
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/qualities/:
+    get:
+      tags:
+        - quality
+      summary: GET /api/v1/qualities/
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/qualities/profile/{profileId}:
+    get:
+      tags:
+        - quality
+      summary: GET /api/v1/qualities/profile/{profileId}
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: profileId
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/recruiter/search:
+    post:
+      tags:
+        - recruiter
+      summary: POST /api/v1/recruiter/search
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - capability:recruiter
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Search"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/recruiter/profile/{profileId}:
+    get:
+      tags:
+        - recruiter
+      summary: GET /api/v1/recruiter/profile/{profileId}
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - capability:recruiter
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: profileId
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/recruiter/contact/{profileId}:
+    post:
+      tags:
+        - recruiter
+      summary: POST /api/v1/recruiter/contact/{profileId}
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - capability:recruiter
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: profileId
+          in: path
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactRequest"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/recruiter/history:
+    get:
+      tags:
+        - recruiter
+      summary: GET /api/v1/recruiter/history
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - capability:recruiter
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/references/opt-in:
+    post:
+      tags:
+        - reference
+      summary: POST /api/v1/references/opt-in
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OptIn"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/references/withdraw/{referenceId}:
+    delete:
+      tags:
+        - reference
+      summary: DELETE /api/v1/references/withdraw/{referenceId}
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: referenceId
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/references/request:
+    post:
+      tags:
+        - reference
+      summary: POST /api/v1/references/request
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:['RECRUITER']
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactRequest"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/references/profile/{profileId}:
+    get:
+      tags:
+        - reference
+      summary: GET /api/v1/references/profile/{profileId}
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: profileId
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/reviews/scan/{slug}:
+    post:
+      tags:
+        - review
+      summary: POST /api/v1/reviews/scan/{slug}
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: slug
+          in: path
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Scan"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/reviews/submit:
+    post:
+      tags:
+        - review
+      summary: POST /api/v1/reviews/submit
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitReview"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/reviews/my-submissions:
+    get:
+      tags:
+        - review
+      summary: GET /api/v1/reviews/my-submissions
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewsPage"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/reviews/me:
+    get:
+      tags:
+        - review
+      summary: GET /api/v1/reviews/me
+      security:
+        - bearerAuth: []
+      x-middleware:
+        - authenticate
+        - role:['INDIVIDUAL']
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewsPage"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/reviews/profile/{profileId}:
+    get:
+      tags:
+        - review
+      summary: GET /api/v1/reviews/profile/{profileId}
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: profileId
+          in: path
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewsPage"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/subscriptions/webhook:
+    post:
+      tags:
+        - subscription
+      summary: POST /api/v1/subscriptions/webhook
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/subscriptions/checkout:
+    post:
+      tags:
+        - subscription
+      summary: POST /api/v1/subscriptions/checkout
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCheckout"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/subscriptions/me:
+    get:
+      tags:
+        - subscription
+      summary: GET /api/v1/subscriptions/me
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionMe"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/subscriptions/cancel:
+    post:
+      tags:
+        - subscription
+      summary: POST /api/v1/subscriptions/cancel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Cancel"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/verification/initiate:
+    post:
+      tags:
+        - verification
+      summary: POST /api/v1/verification/initiate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Initiate"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/verification/otp/send:
+    post:
+      tags:
+        - verification
+      summary: POST /api/v1/verification/otp/send
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendOtp"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/verification/otp/verify:
+    post:
+      tags:
+        - verification
+      summary: POST /api/v1/verification/otp/verify
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyOtp"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/verification/token/{tokenId}:
+    get:
+      tags:
+        - verification
+      summary: GET /api/v1/verification/token/{tokenId}
+      parameters:
+        - schema:
+            type: string
+          required: true
+          name: tokenId
+          in: path
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+webhooks: {}

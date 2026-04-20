@@ -75,9 +75,10 @@ export async function completeSignIn(
   const userCredential = await signInWithCredential(auth, credential);
   const firebaseIdToken = await userCredential.user.getIdToken();
 
-  const { token, user } = await exchangeToken(firebaseIdToken);
-  await setToken(token);
-  return { token, user };
+  const { accessToken, user } = await exchangeToken(firebaseIdToken);
+  assertNonEmptyString(accessToken, "exchangeToken.accessToken");
+  await setToken(accessToken);
+  return { token: accessToken, user };
 }
 
 /**
@@ -90,7 +91,22 @@ export async function signInWithEmailPassword(
   email: string,
   password: string,
 ): Promise<{ token: string; user: AuthUser }> {
-  const { token, user } = await passwordLogin(email, password);
-  await setToken(token);
-  return { token, user };
+  const { accessToken, user } = await passwordLogin(email, password);
+  assertNonEmptyString(accessToken, "passwordLogin.accessToken");
+  await setToken(accessToken);
+  return { token: accessToken, user };
+}
+
+/**
+ * Guard against API contract drift: if the API ever renames accessToken or
+ * returns null/undefined, fail loud with a clear message instead of letting
+ * SecureStore throw "Values must be strings" (the 2026-04-20 bug).
+ */
+function assertNonEmptyString(value: unknown, label: string): asserts value is string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(
+      `${label} must be a non-empty string; got ${typeof value === "string" ? "empty string" : typeof value}. ` +
+      `Likely API contract drift — check that the response shape matches ExchangeTokenResponse.`,
+    );
+  }
 }

@@ -185,6 +185,12 @@ tasks:
     desc: Fetch review-dev-bundle from GCP Secret Manager (falls back to `gcloud config` project) and unpack into repo root
     cmd: bun run {{.REPO_ROOT}}/infra/scripts/dev-bundle.ts pull {{.CLI_ARGS}}
 
+  # ─── OpenAPI contract ────────────────────────────────────────────────────────
+
+  openapi:regen:
+    desc: Regenerate docs/openapi.yaml from apps/api Zod schemas + route tables
+    cmd: cd {{.REPO_ROOT}}/apps/api && npx tsx src/scripts/generate-openapi.ts
+
   # ─── Play Console ────────────────────────────────────────────────────────────
 
   play:status:
