@@ -7,12 +7,14 @@
   "scripts": {
     "test": "playwright test",
     "test:ui": "playwright test --ui",
-    "sweep": "tsx src/sweep.ts"
+    "sweep": "tsx src/sweep.ts",
+    "codegen": "openapi-typescript ../../docs/openapi.yaml -o src/api-types.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.0",
     "@types/node": "^20.11.0",
     "@types/pg": "^8.11.10",
+    "openapi-typescript": "^7.13.0",
     "pg": "^8.13.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
