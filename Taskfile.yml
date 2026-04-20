@@ -5,6 +5,11 @@ version: "3"
 # dotenv would leak across labels (dev env into test, etc.).
 
 includes:
+  # Bootstrap bundle tasks — NO dotenv at include site (must work on fresh
+  # clone before .env.<env> exists). Each env owns its own file under infra/.
+  #   task infra:dev:pull / :push
+  infra:
+    taskfile: ./infra/Taskfile.yml
   local:
     taskfile: Taskfile.local.yml
     dotenv: [".env"]

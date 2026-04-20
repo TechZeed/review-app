@@ -25,14 +25,23 @@ import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
-const SECRET_NAME = "review-dev-bundle";
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const PROJECT_DEFAULTS_FILE = resolve(REPO_ROOT, "apps/api/config/application.dev.env");
+// ─── CLI parsing ────────────────────────────────────────────────────────────
+// Usage: dev-bundle.ts <push|pull> [--env=<name>] [--project=<id>]
+// --env defaults to 'dev'. Future envs: --env=prod, --env=staging — script
+// derives the secret name + bundled paths per-env, no code changes needed.
+const RAW_ARGV = process.argv.slice(2);
+const ENV_FLAG = RAW_ARGV.find((a) => a.startsWith("--env="));
+const APP_ENV = ENV_FLAG ? ENV_FLAG.slice("--env=".length) : process.env.APP_ENV || "dev";
 
-// Non-secret project identity lives in apps/api/config/application.dev.env
-// (committed API dev defaults). Used as a fallback when GCP_PROJECT_ID isn't
-// in the caller env — lets `dev:bundle:pull` work from a fresh clone with
-// zero flags, before .env.dev has been pulled.
+const SECRET_NAME = `review-${APP_ENV}-bundle`;
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const BUNDLE_PATHS = [`.env.${APP_ENV}`, `infra/${APP_ENV}/vault/`];
+const PROJECT_DEFAULTS_FILE = resolve(REPO_ROOT, "apps/api/config", `application.${APP_ENV}.env`);
+
+// Non-secret project identity lives in apps/api/config/application.<env>.env
+// (committed API defaults). Used as a fallback when GCP_PROJECT_ID isn't
+// in the caller env — lets `infra:<env>:pull` work from a fresh clone with
+// zero flags, before .env.<env> has been pulled.
 function readProjectDefaults(): Record<string, string> {
   if (!existsSync(PROJECT_DEFAULTS_FILE)) return {};
   const out: Record<string, string> = {};
@@ -98,11 +107,11 @@ async function push(): Promise<void> {
     createSecret(project);
   }
 
-  console.log(`→ Packing .env.dev + infra/dev/vault/ …`);
+  console.log(`→ Packing ${BUNDLE_PATHS.join(" + ")} …`);
   // gcloud's stdout text-encoding corrupts raw gzip bytes on retrieval,
   // so we base64-wrap the tarball. Harmless on push; decoded on pull.
   // `.env` is NOT in the bundle — it's committed as placeholder-only (d28).
-  const tar = spawn("tar", ["czf", "-", ".env.dev", "infra/dev/vault/"], { cwd: REPO_ROOT });
+  const tar = spawn("tar", ["czf", "-", ...BUNDLE_PATHS], { cwd: REPO_ROOT });
   const base64 = spawn("base64", [], { stdio: ["pipe", "pipe", "inherit"] });
   const gcloud = spawn(
     "gcloud",
@@ -127,7 +136,7 @@ async function pull(argv: string[]): Promise<void> {
     readProjectDefaults().GCP_PROJECT_ID ||
     gcloudProjectFromConfig();
   if (!project) {
-    die("No project id. Pass --project=<id>, set GCP_PROJECT_ID, add to apps/api/config/application.dev.env, or `gcloud config set project <id>`.");
+    die(`No project id for APP_ENV=${APP_ENV}. Pass --project=<id>, set GCP_PROJECT_ID, add to apps/api/config/application.${APP_ENV}.env, or \`gcloud config set project <id>\`.`);
   }
 
   console.log(`→ Fetching ${SECRET_NAME} from project ${project} …`);
@@ -146,7 +155,7 @@ async function pull(argv: string[]): Promise<void> {
     new Promise<number>((r) => tar.on("close", (c) => r(c ?? 0))),
   ]);
   if (codes.some((c) => c !== 0)) die(`Pull pipeline failed: codes=${codes.join(",")}`);
-  console.log(`✓ Unpacked .env.dev + infra/dev/vault/ into ${REPO_ROOT}`);
+  console.log(`✓ Unpacked ${BUNDLE_PATHS.join(" + ")} into ${REPO_ROOT}`);
 }
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -158,6 +167,6 @@ switch (cmd) {
     await pull(rest);
     break;
   default:
-    console.error("Usage: dev-bundle.ts <push|pull> [--project=<id>]");
+    console.error("Usage: dev-bundle.ts <push|pull> [--env=<name>] [--project=<id>]");
     process.exit(2);
 }

@@ -103,7 +103,23 @@ Binary/JSON credentials (service accounts, signing keys) live in `infra/dev/vaul
 
 **Runtime contract:** `ConfigResolver.resolveFilePath(key)` returns the path. The app never calls Secret Manager for vault files at runtime — writing is the environment's job (Cloud Run mount, CI hydrate action, or `task dev:vault:pull` locally).
 
-**New developer bootstrap:** `git clone` → fill `GCP_PROJECT_ID` in `.env.dev` → `gcloud auth login` → `task dev:vault:pull` → vault populated. See `docs/specs/22-file-vault-pattern.md`.
+**New developer bootstrap (fresh clone):**
+
+```bash
+git clone …
+gcloud auth login && gcloud auth application-default login
+
+# Pull .env.dev + infra/dev/vault/* in one shot. Works with NO local .env.dev —
+# the script reads GCP_PROJECT_ID from the committed apps/api/config/application.dev.env
+# and resolves REPO_ROOT via the script's own location (cwd-independent).
+task infra:dev:pull              # add `-- --force` to overwrite existing files
+```
+
+Bootstrap tasks live under `infra:<env>:*` (NOT `dev:*`) because `dev:*` loads `.env.dev` at the include site — that file doesn't exist yet on a fresh clone (chicken-and-egg). See `infra/Taskfile.yml` + `infra/Taskfile.dev.yml`.
+
+After bootstrap, normal work: `task dev:vault:pull` (per-key refresh), `task infra:dev:push` (atomic push after rotating secrets), `task dev:sync:vault` (surgical per-key sync). See `docs/specs/22-file-vault-pattern.md`.
+
+**Adding a new env** (e.g. prod): (1) `apps/api/config/application.prod.env` with `GCP_PROJECT_ID`, (2) `infra/Taskfile.prod.yml` mirroring `Taskfile.dev.yml` with `--env=prod`, (3) add `prod: { taskfile: ./Taskfile.prod.yml }` to `infra/Taskfile.yml`. Same `dev-bundle.ts` handles it; no new code.
 
 ## Core rules — no hardcoding, always via task
 

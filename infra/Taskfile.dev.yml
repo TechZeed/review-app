@@ -1,0 +1,24 @@
+version: "3"
+
+# Dev bootstrap bundle — works on a fresh clone (no .env.dev needed).
+# Script accepts `--env=dev` and resolves GCP_PROJECT_ID from the committed
+# apps/api/config/application.dev.env. REPO_ROOT is derived from the script's
+# own path, so tasks work regardless of cwd.
+#
+# Invocations (from repo root):
+#   task infra:dev:pull                # pull .env.dev + infra/dev/vault/* from GCP SM
+#   task infra:dev:pull -- --force     # overwrite existing local files
+#   task infra:dev:push                # tar local state and push
+
+vars:
+  REPO_ROOT:
+    sh: git rev-parse --show-toplevel
+
+tasks:
+  pull:
+    desc: Pull .env.dev + vault files from GCP Secret Manager (no .env.dev required)
+    cmd: bun run {{.REPO_ROOT}}/infra/scripts/dev-bundle.ts pull --env=dev {{.CLI_ARGS}}
+
+  push:
+    desc: Tar .env.dev + infra/dev/vault/* and push to GCP Secret Manager
+    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/scripts/dev-bundle.ts push --env=dev

@@ -1,0 +1,13 @@
+version: "3"
+
+# Infra bootstrap router — mirrors root Taskfile.yml style but with NO dotenv.
+# Each env has its own Taskfile; bundle tasks must work on a fresh clone
+# where `.env.<env>` does not yet exist (that's the file they fetch).
+#
+# Invocations:
+#   task infra:dev:pull / :push
+#   task infra:prod:pull ...     (once Taskfile.prod.yml exists)
+
+includes:
+  dev:
+    taskfile: ./Taskfile.dev.yml

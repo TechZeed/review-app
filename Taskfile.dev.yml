@@ -134,11 +134,9 @@ tasks:
     desc: Fetch GCP vault files from Secret Manager to infra/dev/vault/
     cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/scripts/sync-vault.ts pull {{.CLI_ARGS}}
 
-  # ─── Dev bundle — one-shot bootstrap (.env.dev + vault files) ───────────────
-
-  bundle:push:
-    desc: Upload .env.dev + infra/dev/vault/ to GCP Secret Manager as review-dev-bundle
-    cmd: bun run --env-file={{.REPO_ROOT}}/.env.dev {{.REPO_ROOT}}/infra/scripts/dev-bundle.ts push
+  # ─── Dev bundle — moved to infra/Taskfile.dev.yml ─────────────────────────
+  # Bootstrap is env-agnostic and must work on fresh clone (no .env.dev). Use:
+  #   task infra:dev:pull    task infra:dev:push
 
   test:regression:
     desc: Run E2E regression suite against dev (spec 25)
@@ -182,10 +180,6 @@ tasks:
       gh release download "$TAG" --pattern preview.apk --dir /tmp/reviewapp-regression --clobber
       adb install -r /tmp/reviewapp-regression/preview.apk
       cd {{.REPO_ROOT}}/apps/regression/maestro && $HOME/.maestro/bin/maestro test .
-
-  bundle:pull:
-    desc: Fetch review-dev-bundle from GCP Secret Manager (falls back to `gcloud config` project) and unpack into repo root
-    cmd: bun run {{.REPO_ROOT}}/infra/scripts/dev-bundle.ts pull {{.CLI_ARGS}}
 
   # ─── OpenAPI contract ────────────────────────────────────────────────────────
 
