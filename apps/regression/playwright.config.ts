@@ -51,5 +51,10 @@ export default defineConfig({
       use: { baseURL: API_URL },
       testMatch: /07-cross-stack\.spec\.ts/,
     },
+    {
+      name: "local-smoke",
+      use: { baseURL: DASHBOARD_URL },
+      testMatch: /99-local-smoke\.spec\.ts/,
+    },
   ],
 });
