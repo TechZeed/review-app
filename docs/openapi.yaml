@@ -1,6 +1,6 @@
 # ReviewApp OpenAPI — auto-generated, do not hand-edit.
 # Regenerate: task dev:openapi:regen
-# Generated: 2026-04-20T12:09:43.770Z
+# Generated: 2026-04-20T12:56:06.530Z
 
 openapi: 3.1.0
 info:
@@ -1130,6 +1130,12 @@ components:
         - tier
         - successUrl
         - cancelUrl
+    CreatePortal:
+      type: object
+      properties:
+        returnUrl:
+          type: string
+          format: uri
     Reconciliation:
       type: object
       properties:
@@ -2426,7 +2432,6 @@ paths:
         - bearerAuth: []
       x-middleware:
         - authenticate
-        - role:['INDIVIDUAL']
       responses:
         "200":
           description: OK
@@ -2462,7 +2467,6 @@ paths:
         - bearerAuth: []
       x-middleware:
         - authenticate
-        - role:['INDIVIDUAL']
       requestBody:
         content:
           application/json:
@@ -2500,7 +2504,6 @@ paths:
         - bearerAuth: []
       x-middleware:
         - authenticate
-        - role:['INDIVIDUAL']
       requestBody:
         content:
           application/json:
@@ -2538,7 +2541,6 @@ paths:
         - bearerAuth: []
       x-middleware:
         - authenticate
-        - role:['INDIVIDUAL']
       responses:
         "200":
           description: OK
@@ -2571,7 +2573,6 @@ paths:
         - bearerAuth: []
       x-middleware:
         - authenticate
-        - role:['INDIVIDUAL']
       responses:
         "200":
           description: OK
@@ -3248,6 +3249,39 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/CreateCheckout"
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: Rate-limited
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/subscriptions/portal:
+    post:
+      tags:
+        - subscription
+      summary: POST /api/v1/subscriptions/portal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePortal"
       responses:
         "200":
           description: OK

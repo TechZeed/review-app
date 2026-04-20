@@ -8,6 +8,7 @@ import { logger } from '../../config/logger.js';
 import type {
   CreateCheckoutInput,
   CheckoutResponse,
+  PortalSessionResponse,
   SubscriptionResponse,
   SubscriptionRecord,
 } from './subscription.types.js';
@@ -35,6 +36,28 @@ const TIER_TO_DB_TIER: Record<string, string> = {
 
 export class SubscriptionService {
   constructor(private repo: SubscriptionRepository) {}
+
+  private resolvePortalReturnUrl(returnUrl?: string): string {
+    const defaultUrl = `${env.FRONTEND_URL}/billing`;
+    if (!returnUrl) return defaultUrl;
+
+    let candidate: URL;
+    let expected: URL;
+    try {
+      candidate = new URL(returnUrl);
+      expected = new URL(env.FRONTEND_URL);
+    } catch (error) {
+      const sanitizedReturnUrl = returnUrl.replace(/[\r\n\t]/g, '').slice(0, 512);
+      logger.warn('Invalid portal return URL', { returnUrl: sanitizedReturnUrl, frontendUrl: env.FRONTEND_URL, error });
+      throw new AppError('Invalid return URL', 400, 'INVALID_RETURN_URL');
+    }
+
+    if (candidate.origin !== expected.origin) {
+      throw new AppError('Invalid return URL origin', 400, 'INVALID_RETURN_URL');
+    }
+
+    return returnUrl;
+  }
 
   private expectedCapabilityForPaidTier(tier: string): 'pro' | 'employer' | 'recruiter' | null {
     if (tier === 'pro' || tier === 'employer' || tier === 'recruiter') return tier;
@@ -213,6 +236,28 @@ export class SubscriptionService {
 
   async listActiveCapabilities(userId: string) {
     return capabilityRepo.listActive(userId);
+  }
+
+  async createPortalSession(userId: string, returnUrl?: string): Promise<PortalSessionResponse> {
+    const stripe = getStripe();
+    const sub = await this.repo.findActiveByUserId(userId);
+
+    if (!sub) {
+      throw new AppError('No active subscription found', 400, 'NO_ACTIVE_SUBSCRIPTION');
+    }
+
+    if (!sub.stripeCustomerId) {
+      throw new AppError('No Stripe customer ID found', 400, 'NO_STRIPE_CUSTOMER');
+    }
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: sub.stripeCustomerId,
+      return_url: this.resolvePortalReturnUrl(returnUrl),
+    });
+
+    return {
+      portalUrl: session.url,
+    };
   }
 
   async cancelSubscription(userId: string, immediate: boolean = false): Promise<SubscriptionResponse> {

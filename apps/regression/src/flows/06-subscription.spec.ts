@@ -25,7 +25,7 @@ import { primeDashboardSession } from "../lib/browserAuth.js";
 const API_URL = process.env.REGRESSION_API_URL ?? "https://review-api.teczeed.com";
 
 test.describe("billing page (browser)", () => {
-  test("james sees employer plans and can start a Stripe checkout session", async ({
+  test("james sees employer plans and can start a Stripe checkout/portal redirect", async ({
     page,
   }) => {
     await primeDashboardSession(page, "james@reviewapp.demo");
@@ -46,11 +46,12 @@ test.describe("billing page (browser)", () => {
     await expect(page.getByTestId("billing-group-employer")).toBeVisible();
     await expect(page.getByTestId("billing-group-recruiter")).toBeVisible();
 
-    // Intercept the checkout POST so we can stop the redirect cleanly
+    // Intercept billing redirect POST so we can stop the redirect cleanly
     // (we don't want this test to actually navigate to Stripe).
-    const checkoutPromise = page.waitForResponse(
+    const billingActionPromise = page.waitForResponse(
       (res) =>
-        res.url().includes("/api/v1/subscriptions/checkout") &&
+        (res.url().includes("/api/v1/subscriptions/checkout") ||
+          res.url().includes("/api/v1/subscriptions/portal")) &&
         res.request().method() === "POST",
       { timeout: 30_000 },
     );
@@ -64,15 +65,21 @@ test.describe("billing page (browser)", () => {
     await expect(upgradeBtn).toBeEnabled({ timeout: 10_000 });
     await upgradeBtn.click();
 
-    const res = await checkoutPromise;
-    // Either 201 (new session) or 409 (active sub already exists from a
-    // prior run that didn't get cleaned up) — both prove the wiring is
-    // intact.
-    expect([201, 409]).toContain(res.status());
-
-    if (res.status() === 201) {
+    const res = await billingActionPromise;
+    if (res.url().includes("/api/v1/subscriptions/portal")) {
+      expect(res.status()).toBe(201);
       const body = await res.json();
-      expect(body.checkoutUrl).toMatch(/^https:\/\/checkout\.stripe\.com\//);
+      expect(body.portalUrl).toMatch(/^https?:\/\//);
+    } else {
+      // Either 201 (new session) or 409 (active sub already exists from a
+      // prior run that didn't get cleaned up) — both prove the wiring is
+      // intact.
+      expect([201, 409]).toContain(res.status());
+
+      if (res.status() === 201) {
+        const body = await res.json();
+        expect(body.checkoutUrl).toMatch(/^https:\/\/checkout\.stripe\.com\//);
+      }
     }
   });
 

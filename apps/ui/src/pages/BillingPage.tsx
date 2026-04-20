@@ -62,6 +62,10 @@ const GROUP_LABEL: Record<TierGroup, string> = {
   recruiter: 'Recruiter',
 };
 
+interface PortalResponse {
+  portalUrl: string;
+}
+
 async function api<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -121,6 +125,29 @@ export default function BillingPage() {
     },
     onError: (err: unknown) => {
       setErrorMsg(err instanceof Error ? err.message : 'Checkout failed.');
+      setPendingPlan(null);
+    },
+  });
+
+  const portalMutation = useMutation({
+    mutationFn: async () => {
+      setErrorMsg(null);
+      const returnUrl = `${window.location.origin}/billing`;
+      return api<PortalResponse>('/api/v1/subscriptions/portal', user.token, {
+        method: 'POST',
+        body: JSON.stringify({ returnUrl }),
+      });
+    },
+    onSuccess: (data) => {
+      if (data.portalUrl) {
+        window.location.assign(data.portalUrl);
+      } else {
+        setErrorMsg('Portal session created but no redirect URL returned.');
+        setPendingPlan(null);
+      }
+    },
+    onError: (err: unknown) => {
+      setErrorMsg(err instanceof Error ? err.message : 'Portal redirect failed.');
       setPendingPlan(null);
     },
   });
@@ -268,20 +295,36 @@ export default function BillingPage() {
                   <div data-testid={expandTestId} className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
                     {plans.map((plan) => {
                       const pendingKey = `${plan.tier}:${plan.cycle}`;
-                      const isPending = checkoutMutation.isPending && pendingPlan === pendingKey;
+                      const isPending =
+                        (checkoutMutation.isPending && pendingPlan === pendingKey) ||
+                        (portalMutation.isPending && hasActiveSub);
+                      // Spec 51: active subscribers route through Stripe Customer Portal
+                      // for plan changes; free users hit checkout to start a new sub.
+                      const ctaLabel = isPending
+                        ? 'Redirecting to Stripe…'
+                        : hasActiveSub
+                          ? owned ? 'Change plan' : 'Switch plan'
+                          : 'Start this plan';
                       return (
                         <button
                           key={pendingKey}
                           type="button"
-                          onClick={() => checkoutMutation.mutate(plan)}
+                          onClick={() => {
+                            if (hasActiveSub) {
+                              portalMutation.mutate();
+                              return;
+                            }
+                            checkoutMutation.mutate(plan);
+                          }}
                           disabled={isPending}
+                          data-testid="billing-upgrade-btn"
+                          data-plan-tier={plan.tier}
+                          data-plan-cycle={plan.cycle}
                           className="text-left p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
                         >
                           <div className="text-sm font-semibold text-gray-900">{plan.label}</div>
                           <div className="text-sm text-gray-700">{plan.price}</div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {isPending ? 'Redirecting to Stripe…' : owned ? 'Change to this plan' : 'Start this plan'}
-                          </div>
+                          <div className="text-xs text-gray-500 mt-1">{ctaLabel}</div>
                         </button>
                       );
                     })}
