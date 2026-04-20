@@ -6,9 +6,14 @@ export interface SubscriptionAttributes {
   tier: "free" | "pro" | "employer" | "recruiter";
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
+  stripePriceId: string | null;
+  billingCycle: "monthly" | "annual" | null;
+  quantity: number;
   status: "active" | "past_due" | "cancelled" | "trialing" | "incomplete";
   currentPeriodStart: Date | null;
   currentPeriodEnd: Date | null;
+  cancelAtPeriodEnd: boolean;
+  cancelledAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,9 +24,14 @@ export class Subscription extends Model<SubscriptionAttributes> implements Subsc
   declare tier: "free" | "pro" | "employer" | "recruiter";
   declare stripeCustomerId: string | null;
   declare stripeSubscriptionId: string | null;
+  declare stripePriceId: string | null;
+  declare billingCycle: "monthly" | "annual" | null;
+  declare quantity: number;
   declare status: "active" | "past_due" | "cancelled" | "trialing" | "incomplete";
   declare currentPeriodStart: Date | null;
   declare currentPeriodEnd: Date | null;
+  declare cancelAtPeriodEnd: boolean;
+  declare cancelledAt: Date | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -63,6 +73,24 @@ export function initSubscriptionModel(sequelize: Sequelize): void {
         unique: true,
         field: "stripe_subscription_id",
       },
+      stripePriceId: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        field: "stripe_price_id",
+      },
+      billingCycle: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+        field: "billing_cycle",
+        validate: {
+          isIn: [["monthly", "annual"]],
+        },
+      },
+      quantity: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 1,
+      },
       status: {
         type: DataTypes.STRING(20),
         allowNull: false,
@@ -80,6 +108,17 @@ export function initSubscriptionModel(sequelize: Sequelize): void {
         type: DataTypes.DATE,
         allowNull: true,
         field: "current_period_end",
+      },
+      cancelAtPeriodEnd: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        field: "cancel_at_period_end",
+      },
+      cancelledAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        field: "cancelled_at",
       },
       createdAt: {
         type: DataTypes.DATE,

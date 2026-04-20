@@ -53,8 +53,22 @@ tasks:
   # ─── Dev Server ──────────────────────────────────────────────────────────────
 
   server:
-    desc: Start API dev server
+    desc: Start API dev server (port from .env PORT, default 6510)
     cmd: "{{.REPO_ROOT}}/infra/scripts/run.sh local server"
+
+  dev:ui:
+    desc: Start UI Vite dev server (port from apps/ui/vite.config.ts, currently 6513)
+    env:
+      APP_ENV: local
+    cmd: |
+      cd {{.REPO_ROOT}}/apps/ui && npx vite
+
+  dev:web:
+    desc: Start Web Vite dev server (port from apps/web/vite.config.ts, currently 6514)
+    env:
+      APP_ENV: local
+    cmd: |
+      cd {{.REPO_ROOT}}/apps/web && npx vite
 
   # ─── Database ────────────────────────────────────────────────────────────────
 
@@ -85,8 +99,8 @@ tasks:
   # ─── Stripe ──────────────────────────────────────────────────────────────────
 
   stripe:listen:
-    desc: Forward Stripe webhooks to local API
-    cmd: stripe listen --forward-to http://localhost:3000/api/v1/subscriptions/webhook
+    desc: Forward Stripe webhooks to local API (PORT from .env)
+    cmd: stripe listen --forward-to http://localhost:${PORT:-6510}/api/v1/subscriptions/webhook
 
   # ─── Quality ─────────────────────────────────────────────────────────────────
 
