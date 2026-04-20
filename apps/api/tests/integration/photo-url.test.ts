@@ -23,6 +23,17 @@ beforeAll(async () => {
 }, 120_000);
 
 describe("Spec 25 — photoUrl on profile + scan", () => {
+  const loginAs = async (email: string, password: string): Promise<string> => {
+    const login = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email, password });
+    expect(login.status).toBe(200);
+    const token: string =
+      login.body?.accessToken ?? login.body?.data?.accessToken;
+    expect(token).toBeTruthy();
+    return token;
+  };
+
   describe("GET /api/v1/profiles/:slug", () => {
     it("returns photoUrl: null when user.avatarUrl is unset (seeded individual)", async () => {
       const res = await request(app).get(
@@ -36,16 +47,10 @@ describe("Spec 25 — photoUrl on profile + scan", () => {
 
   describe("GET /api/v1/profiles/me", () => {
     it("includes photoUrl in the response", async () => {
-      const login = await request(app)
-        .post("/api/v1/auth/login")
-        .send({
-          email: "individual@test.local",
-          password: "Test_Individual_Pass_007",
-        });
-      expect(login.status).toBe(200);
-      const token: string =
-        login.body?.accessToken ?? login.body?.data?.accessToken;
-      expect(token).toBeTruthy();
+      const token = await loginAs(
+        "individual@test.local",
+        "Test_Individual_Pass_007",
+      );
 
       const me = await request(app)
         .get("/api/v1/profiles/me")
@@ -53,6 +58,24 @@ describe("Spec 25 — photoUrl on profile + scan", () => {
       expect(me.status).toBe(200);
       expect(me.body).toHaveProperty("photoUrl");
       expect(me.body.photoUrl).toBeNull();
+    });
+
+    it("does not 403 for authenticated non-INDIVIDUAL roles (spec 49)", async () => {
+      const roleLogins = [
+        { email: "employer@test.local", password: "Test_Employer_Pass_007", expectedStatus: 200 },
+        { email: "recruiter@test.local", password: "Test_Recruiter_Pass_007", expectedStatus: 404 },
+        { email: "admin@test.local", password: "Test_Admin_Pass_007", expectedStatus: 404 },
+      ] as const;
+
+      for (const roleLogin of roleLogins) {
+        const token = await loginAs(roleLogin.email, roleLogin.password);
+        const me = await request(app)
+          .get("/api/v1/profiles/me")
+          .set("Authorization", `Bearer ${token}`);
+
+        expect(me.status, `${roleLogin.email} should not be blocked by role gate`).toBe(roleLogin.expectedStatus);
+        expect(me.status, `${roleLogin.email} should not receive RBAC 403`).not.toBe(403);
+      }
     });
   });
 
