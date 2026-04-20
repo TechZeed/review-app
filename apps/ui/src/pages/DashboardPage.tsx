@@ -1,16 +1,52 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, type FormEvent } from 'react';
 import { useAuth } from '../App';
 import NavBar from '../components/NavBar';
 import ProfileCard from '../components/ProfileCard';
 import QualityHeatMap from '../components/QualityHeatMap';
 import type { QualityBar } from '../components/QualityHeatMap';
 import ReviewCard from '../components/ReviewCard';
-import { fetchMyProfile, fetchReviews, fetchQualities } from '../lib/api';
+import {
+  fetchMyProfile,
+  fetchReviews,
+  fetchQualities,
+  updateMyProfile,
+} from '../lib/api';
 import type { Profile, Review } from '../lib/api';
 import { buildQualityBarsFromProfile } from '../lib/quality';
 
+interface ProfileFormValues {
+  headline: string;
+  bio: string;
+  industry: string;
+}
+
+function hasProfileChanges(
+  current: ProfileFormValues,
+  initial: ProfileFormValues,
+): boolean {
+  return (
+    current.headline !== initial.headline ||
+    current.bio !== initial.bio ||
+    current.industry !== initial.industry
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [initialValues, setInitialValues] = useState<ProfileFormValues>({
+    headline: '',
+    bio: '',
+    industry: '',
+  });
+  const [formValues, setFormValues] = useState<ProfileFormValues>({
+    headline: '',
+    bio: '',
+    industry: '',
+  });
 
   const profileQuery = useQuery<Profile>({
     queryKey: ['profile', 'me'],
@@ -43,11 +79,75 @@ export default function DashboardPage() {
   const isLoading =
     profileQuery.isLoading || qualitiesQuery.isLoading;
 
+  const updateProfileMutation = useMutation({
+    mutationFn: async (values: ProfileFormValues) => {
+      if (!user?.token) throw new Error('Not authenticated');
+
+      const payload: { headline?: string; bio?: string; industry?: string } = {};
+      if (values.headline !== initialValues.headline) payload.headline = values.headline;
+      if (values.bio !== initialValues.bio) payload.bio = values.bio;
+      if (values.industry !== initialValues.industry) payload.industry = values.industry;
+
+      if (Object.keys(payload).length === 0) return;
+      await updateMyProfile(user.token, payload);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['profile', 'me'] });
+      setIsEditOpen(false);
+      setEditError(null);
+    },
+    onError: (error: unknown) => {
+      setEditError(error instanceof Error ? error.message : 'Failed to save profile');
+    },
+  });
+
+  const openEditModal = () => {
+    if (!profile) return;
+    const values = {
+      headline: profile.headline ?? '',
+      bio: profile.bio ?? '',
+      industry: profile.industry ?? '',
+    };
+    setInitialValues(values);
+    setFormValues(values);
+    setEditError(null);
+    setIsEditOpen(true);
+  };
+
+  const closeEditModal = () => {
+    if (updateProfileMutation.isPending) return;
+    setIsEditOpen(false);
+    setEditError(null);
+  };
+
+  const onEditSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setEditError(null);
+    if (!hasProfileChanges(formValues, initialValues)) {
+      setIsEditOpen(false);
+      return;
+    }
+    updateProfileMutation.mutate(formValues);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50" data-testid="dashboard-root">
       <NavBar />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {profile ? (
+          <div className="mb-4 flex justify-end">
+            <button
+              type="button"
+              data-testid="edit-profile-button"
+              className="px-4 py-2 rounded-md border border-gray-300 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              onClick={openEditModal}
+            >
+              Edit profile
+            </button>
+          </div>
+        ) : null}
+
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-gray-400 text-lg">Loading dashboard...</div>
@@ -127,6 +227,90 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        ) : null}
+
+        {isEditOpen ? (
+          <div
+            className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-profile-title"
+          >
+            <div className="w-full max-w-lg bg-white rounded-xl border border-gray-200 shadow-xl p-6">
+              <h2 id="edit-profile-title" className="text-lg font-semibold text-gray-900 mb-4">
+                Edit profile
+              </h2>
+              <form data-testid="profile-edit-form" className="space-y-4" onSubmit={onEditSubmit}>
+                <div>
+                  <label htmlFor="headline" className="block text-sm font-medium text-gray-700 mb-1">
+                    Headline
+                  </label>
+                  <input
+                    id="headline"
+                    type="text"
+                    value={formValues.headline}
+                    onChange={(event) =>
+                      setFormValues((prev) => ({ ...prev, headline: event.target.value }))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="bio" className="block text-sm font-medium text-gray-700 mb-1">
+                    Bio
+                  </label>
+                  <textarea
+                    id="bio"
+                    rows={4}
+                    value={formValues.bio}
+                    onChange={(event) =>
+                      setFormValues((prev) => ({ ...prev, bio: event.target.value }))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="industry" className="block text-sm font-medium text-gray-700 mb-1">
+                    Industry
+                  </label>
+                  <input
+                    id="industry"
+                    type="text"
+                    value={formValues.industry}
+                    onChange={(event) =>
+                      setFormValues((prev) => ({ ...prev, industry: event.target.value }))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {editError ? (
+                  <p className="text-sm text-red-600" role="alert">
+                    {editError}
+                  </p>
+                ) : null}
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={closeEditModal}
+                    disabled={updateProfileMutation.isPending}
+                    className="px-4 py-2 rounded-md border border-gray-300 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    data-testid="save-profile-button"
+                    disabled={updateProfileMutation.isPending}
+                    className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {updateProfileMutation.isPending ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         ) : null}

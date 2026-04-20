@@ -65,6 +65,20 @@ export function fetchMyProfile(token: string): Promise<Profile> {
   return apiFetch<Profile>('/api/v1/profiles/me', { token });
 }
 
+export interface UpdateMyProfileInput {
+  headline?: string;
+  bio?: string;
+  industry?: string;
+}
+
+export function updateMyProfile(token: string, data: UpdateMyProfileInput): Promise<Profile> {
+  return apiFetch<Profile>('/api/v1/profiles/me', {
+    token,
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
 // ---- Reviews ----
 
 export interface Review {

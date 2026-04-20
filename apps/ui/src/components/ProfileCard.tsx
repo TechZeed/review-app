@@ -24,7 +24,7 @@ export default function ProfileCard({ profile, showQR = false }: ProfileCardProp
   const publicUrl = buildPublicUrl(profile.slug);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div data-testid="profile-card" className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <div className="flex items-start gap-4">
         <Avatar name={profile.name} photoUrl={profile.photoUrl} size="lg" />
         <div className="flex-1">

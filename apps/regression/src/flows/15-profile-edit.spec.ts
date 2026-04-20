@@ -7,14 +7,13 @@ import { openDb, closeDb, type DbCtx } from "../lib/dbProxy.js";
 // owns their profile).
 //
 // API contract: PUT /api/v1/profiles/me with auth + INDIVIDUAL role
-// (apps/api/src/modules/profile/profile.routes.ts). The dashboard UI
-// (DashboardPage + ProfileCard) currently has no edit affordance —
-// confirmed by grepping apps/ui/src for "edit" / "PATCH /profiles".
+// (apps/api/src/modules/profile/profile.routes.ts). The dashboard UI now
+// exposes an edit affordance with data-testid hooks from spec 26.
 //
-// We split the test in two:
+// We cover two slices:
 //   1. API-layer round trip — proves the contract: read → mutate →
-//      DB reflects → restore. Always runs.
-//   2. Browser flow — skipped with a pointer until the UI ships.
+//      DB reflects → restore.
+//   2. Browser flow — edit form in the dashboard.
 //
 // Tracking: docs/specs/26-profile-edit-ui.md (gap spec).
 
@@ -94,14 +93,53 @@ test.describe("profile edit (spec PRD-01 / GAP)", () => {
     }
   });
 
-  test.skip("ramesh edits headline from the dashboard (browser)", async ({ page }) => {
-    // Blocked — DashboardPage / ProfileCard expose no edit affordance
-    // (no edit button, no form, no PATCH/PUT call from the UI). Tracking:
-    // docs/specs/26-profile-edit-ui.md. When the UI ships, the flow is:
-    //   1. primeDashboardSession(page, "ramesh@reviewapp.demo")
-    //   2. click data-testid="edit-profile-button"
-    //   3. fill new headline → save → reload → assert visible
-    //   4. restore via API or UI
-    await primeDashboardSession(page, "ramesh@reviewapp.demo");
+  test("ramesh edits headline from the dashboard (browser)", async ({ page }) => {
+    const api = await request.newContext({ baseURL: API_URL });
+    let accessToken = "";
+    let originalHeadline = "";
+    let originalBio = "";
+    let originalIndustry = "";
+    const testRunId = `regression-ui-${Date.now()}`;
+    const newHeadline = `Senior Engineer · ${testRunId}`;
+    try {
+      const seeded = await primeDashboardSession(page, "ramesh@reviewapp.demo");
+      accessToken = seeded.accessToken;
+
+      const beforeRes = await api.get("/api/v1/profiles/me", {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      expect(beforeRes.ok()).toBeTruthy();
+      const before = await beforeRes.json();
+      originalHeadline = before.headline ?? "";
+      originalBio = before.bio ?? "";
+      originalIndustry = before.industry ?? "";
+
+      const editButton = page.getByTestId("edit-profile-button");
+      await expect(editButton).toBeVisible({ timeout: 10_000 });
+      await editButton.click();
+
+      const form = page.getByTestId("profile-edit-form");
+      await expect(form).toBeVisible();
+      await expect(page.getByLabel("Headline")).toHaveValue(originalHeadline);
+      await expect(page.getByLabel("Bio")).toHaveValue(originalBio);
+      await expect(page.getByLabel("Industry")).toHaveValue(originalIndustry);
+
+      await page.getByLabel("Headline").fill(newHeadline);
+      await page.getByTestId("save-profile-button").click();
+
+      await expect(form).not.toBeVisible();
+      await page.reload();
+      await expect(
+        page.getByTestId("profile-card").getByText(newHeadline, { exact: true }),
+      ).toBeVisible({ timeout: 10_000 });
+    } finally {
+      if (accessToken) {
+        await api.put("/api/v1/profiles/me", {
+          headers: { authorization: `Bearer ${accessToken}` },
+          data: { headline: originalHeadline },
+        });
+      }
+      await api.dispose();
+    }
   });
 });
