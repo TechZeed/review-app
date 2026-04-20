@@ -8,10 +8,10 @@ export default defineConfig({
   plugins: [react()],
   define: buildDefines(appConfig),
   server: {
-    port: 5173,
+    port: 6513,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: appConfig.apiUrl,
         changeOrigin: true,
       },
     },

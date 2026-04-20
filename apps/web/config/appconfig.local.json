@@ -1,6 +1,6 @@
 {
-  "apiUrl": "http://localhost:3000",
-  "publicReviewUrl": "http://localhost:5173",
+  "apiUrl": "http://localhost:6510",
+  "publicReviewUrl": "http://localhost:6514",
   "firebase": {
     "apiKey": "AIzaSyBAQ3fKCEiCn-z7VPG9jEzQ-XA9rCWBvhE",
     "authDomain": "humini-review.firebaseapp.com",
