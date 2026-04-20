@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../App';
 import NavBar from '../components/NavBar';
+import type { components } from '../api-types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://review-api.teczeed.com';
 
@@ -115,22 +116,8 @@ const PLANS: Plan[] = [
 ];
 
 // ── API types ─────────────────────────────────────────────────────────────
-interface ActiveCapability {
-  capability: string; // 'pro' | 'employer' | 'recruiter'
-  source: string; // 'subscription' | 'admin-grant'
-  expiresAt: string | null;
-}
-
-interface SubscriptionMe {
-  tier: string; // 'free' | 'pro' | 'employer' | 'recruiter'
-  status: string; // 'active' | 'trialing' | 'past_due' | 'cancelled' | 'none' | …
-  billingCycle?: string | null;
-  currentPeriodEnd?: string | null;
-  cancelAtPeriodEnd?: boolean;
-  stripeSubscriptionId?: string | null;
-  // Spec 28 — all active capabilities for this user (may be empty).
-  capabilities?: ActiveCapability[];
-}
+type Capability = components['schemas']['Capability'];
+type SubscriptionMe = components['schemas']['SubscriptionMe'];
 
 interface CheckoutResponse {
   checkoutSessionId?: string;
@@ -238,7 +225,7 @@ export default function BillingPage() {
       )
     : undefined;
 
-  const activeCapabilities: ActiveCapability[] = current?.capabilities ?? [];
+  const activeCapabilities: Capability[] = current?.capabilities ?? [];
 
   function ctaFor(plan: Plan): { label: string; variant: 'primary' | 'secondary' | 'danger' } {
     if (!hasActive) return { label: 'Subscribe', variant: 'primary' };

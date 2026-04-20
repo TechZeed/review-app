@@ -4,19 +4,9 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
 import { apiFetch } from './api';
+import type { components } from '../api-types';
 
-export interface ExchangeTokenResponse {
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-    status: string;
-    isApproved: boolean;
-    isActive: boolean;
-  };
-  accessToken: string;
-}
+export type ExchangeTokenResponse = components['schemas']['ExchangeTokenResponse'];
 
 /**
  * Sign in with Google via Firebase popup, then exchange the Firebase ID token

@@ -3,12 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { signInWithGoogle, signInWithEmailPassword, type ExchangeTokenResponse } from '../lib/auth-service';
 import { apiFetch } from '../lib/api';
+import type { components } from '../api-types';
 
 // Spec 28 §10 — UI reads capabilities from /subscriptions/me so paid-feature
 // nav/guards don't depend on role. Fetched once on login; don't block login.
-interface SubscriptionMeResponse {
-  capabilities?: Array<{ capability: string; source: string; expiresAt: string | null }>;
-}
+type SubscriptionMeResponse = components['schemas']['SubscriptionMe'];
 
 async function fetchCapabilities(token: string): Promise<string[]> {
   try {
